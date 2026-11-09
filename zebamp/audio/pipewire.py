@@ -75,6 +75,13 @@ def find_node(dump: list, name: str):
     return None
 
 
+def is_dead_end(dump: list, name: str) -> bool:
+    """A null sink swallows what it receives: never send the music there
+    (e.g. a leftover "ducking" sink from a disabled setup)."""
+    node = find_node(dump, name)
+    return node is not None and _props(node).get("factory.name") == "support.null-audio-sink"
+
+
 def linked_sink(dump: list, node_id: int) -> str | None:
     """Name of the node that `node_id`'s output is linked to."""
     nodes = {o["id"]: o for o in dump if o.get("type") == "PipeWire:Interface:Node"}
@@ -279,11 +286,11 @@ class PipeWireAudio:
         # where the equalised audio goes: the destination configured in
         # mpd.conf first (the user's choice), else where MPD plays right now
         target = mpd_conf_sink()
-        if not target or not find_node(dump, target):
+        if not target or not find_node(dump, target) or is_dead_end(dump, target):
             target = None
             if stream is not None:
                 cur = linked_sink(dump, stream["id"])
-                if cur and cur != EQ_NODE:
+                if cur and cur != EQ_NODE and not is_dead_end(dump, cur):
                     target = cur
         self.target = target
         os.makedirs(RUNTIME, exist_ok=True)

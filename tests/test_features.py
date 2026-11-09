@@ -310,3 +310,14 @@ class MpdConfTargetTest(unittest.TestCase):
             with open(conf, "w") as fh:          # old configs: pulse-style "sink"
                 fh.write('audio_output {\n type "pipewire"\n sink "old"\n}\n# target "x"\n')
             self.assertEqual(pw.mpd_conf_sink(), "old")
+
+
+class DeadEndSinkTest(unittest.TestCase):
+    def test_null_sink_is_never_a_target(self):
+        from zebamp.audio import pipewire as pw
+        node = lambda i, name, factory: {"id": i, "type": "PipeWire:Interface:Node",
+                                         "info": {"props": {"node.name": name, "factory.name": factory}}}
+        dump = [node(1, "duck", "support.null-audio-sink"), node(2, "card", "api.alsa.pcm.sink")]
+        self.assertTrue(pw.is_dead_end(dump, "duck"))
+        self.assertFalse(pw.is_dead_end(dump, "card"))
+        self.assertFalse(pw.is_dead_end(dump, "missing"))
