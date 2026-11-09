@@ -121,15 +121,17 @@ class SongNotifier(QObject):
         artist = first(song.get("artist")) or first(song.get("albumartist")) or ""
         album = first(song.get("album")) or ""
         date = (first(song.get("date")) or "")[:4]
-        body = artist
-        if album:
-            body += ("\n" if body else "") + album + (f" ({date})" if date else "")
+        # two short lines: "Artist · 3:45" and "Album (1975)", so long titles
+        # still fit in the notification box
+        line1 = artist
         dur = song.get("duration") or song.get("time")
         try:
             if dur:
-                body += ("  ·  " if body else "") + fmt_time(float(dur))
+                line1 += ("  ·  " if line1 else "") + fmt_time(float(dur))
         except (TypeError, ValueError):
             pass
+        line2 = album + (f" ({date})" if album and date else "")
+        body = "\n".join(x for x in (line1, line2) if x)
         args = ["-a", "Zebamp", "-p", "-t", str(int(self.app.cfg["notify_timeout"]) * 1000),
                 "-h", "string:desktop-entry:zebamp"]
         # never combine -r (replace) with x-canonical-private-synchronous: that

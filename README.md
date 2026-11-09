@@ -38,6 +38,16 @@ En sway conviene: `for_window [app_id="zebamp"] floating enable, border none`
 y, para buscar desde cualquier sitio,
 `bindsym $mod+Shift+s exec zebamp --buscar`.
 
+Si usas **mako** para las notificaciones y salen recortadas, dale a Zebamp
+su propio tamaño en `~/.config/mako/config` (y `makoctl reload`):
+
+```ini
+[app-name=Zebamp]
+width=560
+height=170
+max-icon-size=128
+```
+
 ## Uso
 
 ```sh
