@@ -271,3 +271,29 @@ def reaches_other_monitor(moving: list, canvas: QRect, all_screens: list) -> boo
     (the user is taking the window to the other screen)."""
     others = [sc for sc in all_screens if not canvas.contains(sc)]
     return any(r.intersects(sc) for r in moving for sc in others)
+
+
+def follow_bottom_edges(rects: dict, new_heights: dict) -> dict:
+    """Winamp rule: when a window changes height (shade, resize), the windows
+    docked under it move with its bottom edge, and so do the ones under those.
+
+    `rects` are the windows before the change (key -> QRect), `new_heights`
+    their heights now.  Returns key -> dy for the windows that must move."""
+    moves: dict = {}
+    for key, old in rects.items():
+        delta = new_heights.get(key, old.height()) - old.height()
+        if not delta:
+            continue
+        todo, seen = [old], {key}
+        while todo:
+            above = todo.pop()
+            bottom = above.y() + above.height()
+            for k, r in rects.items():
+                if k in seen:
+                    continue
+                overlap = r.x() < above.x() + above.width() and above.x() < r.x() + r.width()
+                if overlap and abs(r.y() - bottom) <= 1:
+                    seen.add(k)
+                    moves[k] = moves.get(k, 0) + delta
+                    todo.append(r)
+    return moves

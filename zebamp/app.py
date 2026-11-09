@@ -240,6 +240,23 @@ class ZebampApp:
             return reg
         return QRegion(QRect(x, y, p.width(), p.height()))
 
+    def _follow_bottom_edges(self, vis):
+        """Shading/resizing a window drags the windows docked under it along
+        (otherwise they are left behind and stop being part of the group)."""
+        from .canvas import follow_bottom_edges
+        pos = self._ppos
+        heights = {self._pkey(p): p.logical_size()[1] for p in vis}
+        last = getattr(self, "_last_heights", None)
+        if last:
+            rects = {}
+            for p in vis:
+                k = self._pkey(p)
+                if k in pos and k in last:
+                    rects[k] = QRect(pos[k].x(), pos[k].y(), p.logical_size()[0], last[k])
+            for k, dy in follow_bottom_edges(rects, heights).items():
+                pos[k] = QPoint(pos[k].x(), pos[k].y() + dy)
+        self._last_heights = heights
+
     def _relayout_free(self, vis):
         s = self.scale
         pos = self._ppos
@@ -250,6 +267,7 @@ class ZebampApp:
         scr0 = self._screens_dev()[0]
         for p in vis:
             p.apply_size()
+        self._follow_bottom_edges(vis)
         # newcomers go under the last panel of the default stack (main/eq/pl)
         for p in vis:
             k = self._pkey(p)

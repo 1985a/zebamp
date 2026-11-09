@@ -279,3 +279,16 @@ class ReachesMonitorTest(unittest.TestCase):
         self.assertFalse(reaches_other_monitor([QRect(500, 300, 550, 232)], canvas, screens))
         self.assertFalse(reaches_other_monitor([QRect(2300, 300, 550, 232)], canvas, screens))  # outer edge
         self.assertTrue(reaches_other_monitor([QRect(-5, 300, 550, 232)], canvas, screens))
+
+
+class FollowBottomEdgesTest(unittest.TestCase):
+    def test_shading_drags_the_stack_below(self):
+        from PySide6.QtCore import QRect
+        from zebamp.canvas import follow_bottom_edges
+        rects = {"main": QRect(0, 0, 275, 116), "pl": QRect(0, 116, 275, 203),
+                 "ly": QRect(0, 319, 275, 174), "apart": QRect(400, 116, 275, 100)}
+        # main shaded (116 -> 14): playlist and lyrics move up 102, the loose one stays
+        self.assertEqual(follow_bottom_edges(rects, {"main": 14}), {"pl": -102, "ly": -102})
+        # playlist grows by 29: only the lyrics below it move
+        self.assertEqual(follow_bottom_edges(rects, {"pl": 232}), {"ly": 29})
+        self.assertEqual(follow_bottom_edges(rects, {}), {})
