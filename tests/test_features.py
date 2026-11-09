@@ -322,3 +322,20 @@ class DeadEndSinkTest(unittest.TestCase):
         self.assertTrue(pw.is_dead_end(dump, "duck"))
         self.assertFalse(pw.is_dead_end(dump, "card"))
         self.assertFalse(pw.is_dead_end(dump, "missing"))
+
+
+class StaleFifoTest(unittest.TestCase):
+    def test_fifo_not_in_mpd_conf_is_ignored(self):
+        from unittest import mock
+
+        from zebamp import vis
+        d = tempfile.mkdtemp()
+        conf = os.path.join(d, "mpd", "mpd.conf")
+        os.makedirs(os.path.dirname(conf))
+        with open(conf, "w") as fh:
+            fh.write('audio_output {\n type "pipewire"\n}\n'
+                     '#audio_output {\n# type "fifo"\n# path "/tmp/old.fifo"\n#}\n'
+                     'audio_output {\n type "fifo"\n path "/tmp/live.fifo"\n name "x"\n}\n')
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": d}), \
+                mock.patch.object(os.path, "expanduser", lambda p: d if p == "~" else p):
+            self.assertEqual([p for p, _f, _n in vis.mpd_fifo_outputs()], ["/tmp/live.fifo"])

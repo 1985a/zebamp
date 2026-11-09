@@ -14,8 +14,10 @@ from PySide6.QtGui import QColor, QImage, QPainter
 log = logging.getLogger(__name__)
 
 
-def find_fifo_output() -> tuple[str, str] | None:
-    """Look for `audio_output { type "fifo" ... }` in the user's mpd.conf."""
+def mpd_fifo_outputs() -> list[tuple[str, str, str]] | None:
+    """(path, format, name) of every fifo audio_output in mpd.conf.
+
+    None when no mpd.conf could be read (then nothing is known)."""
     home = os.path.expanduser("~")
     xdg = os.environ.get("XDG_CONFIG_HOME", os.path.join(home, ".config"))
     for conf in (os.path.join(xdg, "mpd", "mpd.conf"),
@@ -23,25 +25,31 @@ def find_fifo_output() -> tuple[str, str] | None:
                  os.path.join(home, ".mpd", "mpd.conf"), "/etc/mpd.conf"):
         try:
             with open(conf, encoding="utf-8", errors="replace") as fh:
-                text = fh.read()
+                text = re.sub(r"#[^\n]*", "", fh.read())
         except OSError:
             continue
-        text = re.sub(r"#[^\n]*", "", text)
         found = []
         for block in re.findall(r"audio_output\s*\{(.*?)\}", text, re.S):
             props = dict(re.findall(r'(\w+)\s+"([^"]*)"', block))
             if props.get("type") == "fifo" and props.get("path"):
                 found.append((os.path.expanduser(props["path"]), props.get("format", "44100:16:2"),
                               props.get("name", "")))
-        if found:
-            # A fifo shared with another visualiser (ncmpcpp, cava...) splits the
-            # data between readers, so prefer one reserved for Zebamp.
-            found.sort(key=lambda f: 0 if "zebamp" in (f[0] + f[2]).lower() else 1)
-            for path, fmt, _name in found:
-                if os.path.exists(path):
-                    return path, fmt
-            return found[0][0], found[0][1]
+        return found
     return None
+
+
+def find_fifo_output() -> tuple[str, str] | None:
+    """The fifo audio_output (path, format) Zebamp should read, if any."""
+    found = mpd_fifo_outputs() or []
+    if not found:
+        return None
+    # A fifo shared with another visualiser (ncmpcpp, cava...) splits the
+    # data between readers, so prefer one reserved for Zebamp.
+    found.sort(key=lambda f: 0 if "zebamp" in (f[0] + f[2]).lower() else 1)
+    for path, fmt, _name in found:
+        if os.path.exists(path):
+            return path, fmt
+    return found[0][0], found[0][1]
 
 
 class FifoReader:
@@ -561,6 +569,13 @@ class Visualizer(QObject):
                 fmt = fmt or f2
         self.shared_with = []
         use_pw = source == "pipewire"
+        if source == "auto" and path:
+            # MPD's fifo outputs can hold back the other outputs when playback
+            # resumes (up to ~1.3 s of silence), so users may remove them: a
+            # fifo no longer declared in mpd.conf is stale, capture PipeWire.
+            declared = mpd_fifo_outputs()
+            if declared is not None and path not in [p for p, _f, _n in declared]:
+                path = ""
         if source == "auto" and path and os.path.exists(path) and "zebamp" not in path.lower():
             # don't steal a fifo another visualiser (ncmpcpp, cava…) is reading
             self.shared_with = fifo_other_readers(path)
