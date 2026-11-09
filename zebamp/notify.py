@@ -1,0 +1,158 @@
+"""Desktop notification with the album cover when the song changes."""
+from __future__ import annotations
+
+import hashlib
+import logging
+import os
+import re
+import shutil
+
+from PySide6.QtCore import QObject, QProcess, QTimer, Qt
+from PySide6.QtGui import QImage
+
+from .player import first, fmt_time
+
+log = logging.getLogger(__name__)
+
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")),
+                     "zebamp", "covers")
+_COVER_NAMES = re.compile(r"^(cover|folder|front|album)[^/]*\.(jpe?g|png|webp|bmp)$", re.I)
+_IMAGE = re.compile(r"\.(jpe?g|png|webp|bmp)$", re.I)
+
+
+def cover_path(uri: str) -> str:
+    return os.path.join(CACHE, hashlib.md5(uri.encode("utf-8", "replace")).hexdigest() + ".png")
+
+
+def fetch_cover_job(uri: str):
+    """Worker-thread job: embedded picture, MPD's cover.*, then the folder."""
+
+    def job(client):
+        out = cover_path(uri)
+        if os.path.exists(out) and os.path.getsize(out) > 0:
+            return out
+        data = None
+        for cmd in ("readpicture", "albumart"):
+            try:
+                r = getattr(client, cmd)(uri)
+                if isinstance(r, dict) and r.get("binary"):
+                    data = r["binary"]
+                    break
+            except Exception:
+                continue
+        img = QImage.fromData(data) if data else QImage()
+        if img.isNull() and "://" not in uri:
+            # like ncmpcpp's helper: any image in the album folder
+            try:
+                music = (client.config() or {}).get("music_directory") if hasattr(client, "config") else None
+            except Exception:
+                music = None
+            if music:
+                d = os.path.join(music, os.path.dirname(uri))
+                try:
+                    files = [f for f in os.listdir(d) if _IMAGE.search(f)]
+                except OSError:
+                    files = []
+                named = [f for f in files if _COVER_NAMES.match(f)]
+                pick = named[0] if named else (max(files, key=lambda f: os.path.getsize(os.path.join(d, f)))
+                                                if files else None)
+                if pick:
+                    img = QImage(os.path.join(d, pick))
+        if img.isNull():
+            return None
+        if max(img.width(), img.height()) > 512:
+            img = img.scaled(512, 512, Qt.AspectRatioMode.KeepAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
+        os.makedirs(CACHE, exist_ok=True)
+        tmp = out + ".tmp.png"
+        if img.save(tmp, "PNG"):
+            os.replace(tmp, out)
+            return out
+        return None
+    return job
+
+
+class SongNotifier(QObject):
+    """Sends "now playing" notifications through notify-send (libnotify)."""
+
+    def __init__(self, app):
+        super().__init__()
+        self.app = app
+        self.available = shutil.which("notify-send") is not None
+        self._last_uri = None
+        self._startup = True
+        self._notif_id = ""
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(350)       # coalesce song+status bursts
+        self._timer.timeout.connect(self._fire)
+        p = app.player
+        p.songChanged.connect(self._timer.start)
+        p.statusChanged.connect(self._timer.start)
+        QTimer.singleShot(2500, self._end_startup)
+
+    def _end_startup(self):
+        # Don't announce the song that was already playing when Zebamp opened.
+        self._last_uri = self._key(self.app.player.song) if self.app.player.state == "play" else None
+        self._startup = False
+
+    def _fire(self):
+        if self._startup or not self.available or not self.app.cfg["notify_song"]:
+            return
+        pl = self.app.player
+        song = pl.song or {}
+        uri = song.get("file")
+        key = self._key(song)
+        if pl.state != "play" or not uri or key == self._last_uri:
+            return
+        self._last_uri = key
+        pl.conn.run_async(fetch_cover_job(uri), lambda path, s=dict(song): self._send(s, path))
+
+    @staticmethod
+    def _key(song):
+        song = song or {}
+        # streams keep their URI while the title changes
+        return (song.get("file"), first(song.get("title")))
+
+    def _send(self, song, cover):
+        if (self.app.player.song or {}).get("file") != song.get("file"):
+            return     # skipped past it while the cover was loading
+        title = first(song.get("title")) or os.path.basename(song.get("file", ""))
+        artist = first(song.get("artist")) or first(song.get("albumartist")) or ""
+        album = first(song.get("album")) or ""
+        date = (first(song.get("date")) or "")[:4]
+        body = artist
+        if album:
+            body += ("\n" if body else "") + album + (f" ({date})" if date else "")
+        dur = song.get("duration") or song.get("time")
+        try:
+            if dur:
+                body += ("  ·  " if body else "") + fmt_time(float(dur))
+        except (TypeError, ValueError):
+            pass
+        args = ["-a", "Zebamp", "-p", "-t", str(int(self.app.cfg["notify_timeout"]) * 1000),
+                "-h", "string:desktop-entry:zebamp"]
+        # never combine -r (replace) with x-canonical-private-synchronous: that
+        # crashes mako 1.11 (double free)
+        if self._notif_id:
+            args += ["-r", self._notif_id]
+        icon = cover or os.path.join(os.path.dirname(__file__), "data", "zebamp.png")
+        if cover:
+            args += ["-h", f"string:image-path:{cover}"]
+        if icon and os.path.exists(icon):
+            args += ["-i", icon]
+        args += ["--", title, _escape(body)]
+        proc = QProcess(self)
+        proc.finished.connect(lambda *_a, pr=proc: self._done(pr))
+        proc.start("notify-send", args)
+
+    def _done(self, proc):
+        out = bytes(proc.readAllStandardOutput()).decode(errors="replace").strip()
+        if out.isdigit():
+            self._notif_id = out
+        proc.deleteLater()
+
+
+def _escape(text: str) -> str:
+    # notification bodies may be interpreted as markup
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

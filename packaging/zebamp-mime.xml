@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-winamp-skin">
+    <comment>Winamp classic skin</comment>
+    <comment xml:lang="es">Skin clásico de Winamp</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.wsz"/>
+  </mime-type>
+  <mime-type type="application/x-winamp3-skin">
+    <comment>Winamp 3/5 modern skin</comment>
+    <comment xml:lang="es">Skin moderno de Winamp</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.wal"/>
+  </mime-type>
+</mime-info>

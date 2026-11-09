@@ -1,0 +1,41 @@
+[Desktop Entry]
+Type=Application
+Name=Zebamp
+GenericName=Reproductor de música (MPD)
+Comment=Reproductor estilo Winamp para MPD con skins clásicos y modernos
+Exec=zebamp %F
+Icon=zebamp
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+MimeType=audio/mpeg;audio/flac;audio/ogg;audio/x-wav;audio/mp4;audio/x-mpegurl;audio/x-scpls;application/vnd.apple.mpegurl;application/x-winamp-skin;application/x-winamp3-skin;
+StartupWMClass=zebamp
+Keywords=winamp;mpd;music;skins;
+Actions=PlayPause;Next;Previous;Search;Lyrics;Radio;Help;
+
+[Desktop Action PlayPause]
+Name=Reproducir/Pausa
+Exec=zebamp --play-pausa
+
+[Desktop Action Next]
+Name=Siguiente
+Exec=zebamp --siguiente
+
+[Desktop Action Previous]
+Name=Anterior
+Exec=zebamp --anterior
+
+[Desktop Action Search]
+Name=Buscar canciones
+Exec=zebamp --buscar
+
+[Desktop Action Lyrics]
+Name=Letras
+Exec=zebamp --letras
+
+[Desktop Action Radio]
+Name=Radio por Internet
+Exec=zebamp --radio
+
+[Desktop Action Help]
+Name=Ayuda de Zebamp
+Exec=zebamp --ayuda

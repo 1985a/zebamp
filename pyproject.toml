@@ -1,0 +1,62 @@
+# Zebamp: Winamp-style client for MPD.
+#
+# Code standards ("buenas prácticas") for this project live here so anyone
+# can check them with one command:
+#
+#     uvx ruff check .          # style + bug patterns (PEP 8 and friends)
+#     python -m unittest discover -s tests
+#
+# See docs/ARQUITECTURA.md for how the code is organised.
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zebamp"
+dynamic = ["version"]
+description = "Reproductor estilo Winamp (skins clásicos y modernos) para MPD"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["PySide6>=6.6", "python-mpd2>=3.1", "numpy", "mutagen"]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+
+[project.optional-dependencies]
+mpris = ["dbus-python"]       # media keys / playerctl; Zebamp works without it
+
+[project.scripts]
+zebamp = "zebamp.__main__:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "zebamp.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["zebamp*"]
+
+[tool.setuptools.package-data]
+zebamp = ["data/*.json", "data/*.png", "data/maki/*", "native/*.cpp"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# F: real errors (undefined names, unused imports)   E/W: PEP 8 style
+# B: likely bugs   UP: modern Python   SIM/C4/PIE/PERF/RET/RUF: simpler, faster code
+select = ["F", "E", "W", "B", "UP", "SIM", "C4", "PIE", "PERF", "RET", "RUF"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # Spanish text and symbols (ñ, ★, «») are intended
+    "SIM105",   # try/except/pass is clearer than contextlib.suppress for many readers
+    "SIM108",   # a plain if/else is often easier to read than a long ternary
+    "RET504", "RET505", "RET503",
+    "RUF046",   # int(round(x)): x is often a numpy float, round() alone keeps numpy types
+    "RUF012",   # class-level constant tables (Qt/MAKI lookups) are never mutated
+    "B008",     # Qt-style default arguments such as QModelIndex()
+    "B905",     # zip() over parallel lists of the same length by construction
+    "PERF401",  # explicit loops kept where they read better than a comprehension
+]
+
+[tool.ruff.lint.per-file-ignores]
+# tests set up an isolated environment before importing zebamp
+"tests/*" = ["E402", "E702", "E701"]
