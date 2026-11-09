@@ -111,7 +111,11 @@ def stream_target(dump: list, node_id: int) -> str | None:
 
 
 def mpd_conf_sink() -> str | None:
-    """`sink` of the pipewire audio_output in mpd.conf, if any."""
+    """Where mpd.conf sends its pipewire audio_output, if it says so.
+
+    The pipewire plugin's option is `target`; `sink` belongs to the pulse
+    plugin (MPD ignores it on pipewire) but old configs carry it over, so it is
+    accepted as a fallback."""
     home = os.path.expanduser("~")
     xdg = os.environ.get("XDG_CONFIG_HOME", os.path.join(home, ".config"))
     for conf in (os.path.join(xdg, "mpd", "mpd.conf"), os.path.join(home, ".mpdconf"),
@@ -123,8 +127,8 @@ def mpd_conf_sink() -> str | None:
             continue
         for block in re.findall(r"audio_output\s*\{(.*?)\}", text, re.S):
             props = dict(re.findall(r'(\w+)\s+"([^"]*)"', block))
-            if props.get("type") == "pipewire" and props.get("sink"):
-                return props["sink"]
+            if props.get("type") == "pipewire" and (props.get("target") or props.get("sink")):
+                return props.get("target") or props["sink"]
     return None
 
 
@@ -272,20 +276,30 @@ class PipeWireAudio:
     def _start_eq(self):
         dump = pw_dump()
         stream = find_mpd_stream(dump, self.stream_match)
-        target = None
-        if stream is not None:
-            cur = linked_sink(dump, stream["id"])
-            if cur and cur != EQ_NODE:
-                target = cur
-        target = target or mpd_conf_sink()
-        if target and not find_node(dump, target):
+        # where the equalised audio goes: the destination configured in
+        # mpd.conf first (the user's choice), else where MPD plays right now
+        target = mpd_conf_sink()
+        if not target or not find_node(dump, target):
             target = None
+            if stream is not None:
+                cur = linked_sink(dump, stream["id"])
+                if cur and cur != EQ_NODE:
+                    target = cur
         self.target = target
         os.makedirs(RUNTIME, exist_ok=True)
         path = os.path.join(RUNTIME, "eq.conf")
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(eq_conf(target, self.bands, self.preamp))
         existing = find_node(dump, EQ_NODE)
+        if existing is not None and target:
+            # a filter left running by an earlier session may point elsewhere
+            out = find_node(dump, EQ_NODE + ".output")
+            if out is not None and linked_sink(dump, out["id"]) not in (None, target):
+                log.info("EQ filter sends to %s, wanted %s: recreating it",
+                         linked_sink(dump, out["id"]), target)
+                self._kill()
+                existing = None
+                time.sleep(0.2)
         if existing is None:
             try:
                 self.proc = subprocess.Popen(["pipewire", "-c", path],

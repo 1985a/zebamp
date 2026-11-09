@@ -292,3 +292,21 @@ class FollowBottomEdgesTest(unittest.TestCase):
         # playlist grows by 29: only the lyrics below it move
         self.assertEqual(follow_bottom_edges(rects, {"pl": 232}), {"ly": 29})
         self.assertEqual(follow_bottom_edges(rects, {}), {})
+
+
+class MpdConfTargetTest(unittest.TestCase):
+    def test_target_preferred_sink_as_fallback(self):
+        from unittest import mock
+
+        from zebamp.audio import pipewire as pw
+        d = tempfile.mkdtemp()
+        conf = os.path.join(d, "mpd", "mpd.conf")
+        os.makedirs(os.path.dirname(conf))
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": d}), \
+                mock.patch.object(os.path, "expanduser", lambda p: d if p == "~" else p):
+            with open(conf, "w") as fh:
+                fh.write('audio_output {\n type "pipewire"\n name "p"\n target "duck"\n}\n')
+            self.assertEqual(pw.mpd_conf_sink(), "duck")
+            with open(conf, "w") as fh:          # old configs: pulse-style "sink"
+                fh.write('audio_output {\n type "pipewire"\n sink "old"\n}\n# target "x"\n')
+            self.assertEqual(pw.mpd_conf_sink(), "old")
