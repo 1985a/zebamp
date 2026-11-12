@@ -3,7 +3,7 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versiones según [PEP 440](https://peps.python.org/pep-0440/).
 
-## Sin publicar
+## 1.0.0rc2 - 2026-11-12
 
 ### Nuevo
 - **Listas inteligentes**: listas por reglas (género, valoración, veces
@@ -47,6 +47,13 @@ versiones según [PEP 440](https://peps.python.org/pep-0440/).
 - Las ventanas de letras y carátula comparten el marco (`ui/genpanel.py`).
 - El índice de la biblioteca guarda el año (se reconstruye una vez).
 - 185 pruebas automáticas (eran 70).
+
+### Pendiente antes de la 1.0.0
+- El reconocimiento por sonido (AcoustID) está probado con respuestas
+  simuladas; falta confirmarlo con el servicio real.
+- Hyprland: escrito y con pruebas de datos, sin probar en un equipo real.
+- Atascos esporádicos al dar «play» (MPD en reproducción sin avanzar): causa
+  sin identificar; esta versión guarda un diagnóstico cuando ocurre.
 
 ## 1.0.0rc1 - 2026-11-08
 

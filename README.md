@@ -46,7 +46,7 @@ install -Dm644 packaging/zebamp-mime.xml ~/.local/share/mime/packages/zebamp-ski
 update-mime-database ~/.local/share/mime
 ```
 
-O como paquete de Python: `pip install zebamp-1.0.0rc1-py3-none-any.whl`
+O como paquete de Python: `pip install zebamp-1.0.0rc2-py3-none-any.whl`
 (crea la orden `zebamp`).
 
 En sway conviene: `for_window [app_id="zebamp"] floating enable, border none`
