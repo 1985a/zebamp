@@ -107,6 +107,8 @@ DEFAULTS = {
     "bookmarks": [],           # [{file, title, pos}]
     "smart_lists": [],         # listas por reglas (ver smartlist.py)
     "radio_favorites": [],    # cerrar la ventana la oculta en la bandeja
+    "acoustid_key": "",        # clave de aplicación de AcoustID: reconocer canciones por su sonido
+    "cover_online": True,      # sin carátula local: buscarla en Internet (MusicBrainz, Deezer, iTunes)
     "notify_song": True,       # notificación con carátula al cambiar de canción
     "notify_timeout": 5,       # segundos
     "scroll_title_in_taskbar": False,

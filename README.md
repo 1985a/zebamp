@@ -23,6 +23,7 @@ Requisitos (nombres de paquetes de Arch Linux):
 | Teclas multimedia (MPRIS) | `python-dbus` |
 | Ecualizador y captura de audio | `pipewire` (`pw-record`, `pw-dump`) |
 | MilkDrop | `projectm` y `gcc` (el puente C++ se compila solo la primera vez) |
+| Reconocer canciones por su sonido | `chromaprint` (`fpcalc`) |
 
 En **Arch Linux**, como paquete (se actualiza con `git pull` y otro `makepkg -si`):
 
@@ -183,7 +184,14 @@ Preferencias › Scrobbling); sin conexión guarda las escuchas y las envía
 después.
 
 **Carátula** (Ctrl+Shift+A): ventana del skin clásico con la carátula del
-álbum, acoplable y redimensionable como las demás.
+álbum, acoplable y redimensionable como las demás. Si la música no trae
+carátula, Zebamp la **busca en Internet** (MusicBrainz/Cover Art Archive,
+Deezer, iTunes) comprobando que artista y álbum coincidan de verdad; se puede
+rechazar una carátula equivocada o desactivar la búsqueda (Menú › Opciones).
+Si al archivo le faltan las etiquetas se usa su nombre («Artista - Título») y,
+con una clave gratuita de AcoustID, Zebamp **reconoce la canción por su
+sonido** (huella de audio con `fpcalc`); también desde la ventana de
+información, para proponer las etiquetas.
 
 **Temporizador de apagado**: pausa en N minutos o al terminar el álbum (Menú ›
 Opciones).

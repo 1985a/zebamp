@@ -343,6 +343,23 @@ tags, the audio format, the cover and the path.</p>
 writing to the file, Zebamp shows you the changes and asks for <b>confirmation</b>. Then it
 tells MPD to update its database. It only works with local files you are allowed to
 modify.</p>
+<h3>Recognising a song by its sound</h3>
+<p>For files with no tags and no useful name, Zebamp can find out what song it is by
+listening to it: it works out an <i>audio fingerprint</i> of the file and looks it up in the
+public <b>AcoustID</b> database, which answers with the artist, the title and the album.</p>
+<ul>
+<li>It is enabled by putting your key in <b>Preferences › Internet</b>. The key is free: it
+is created at acoustid.org/new-application. The program <code>fpcalc</code> (package
+<code>chromaprint</code>) is needed too.</li>
+<li>In the file info window, <b>Recognise by sound…</b> proposes the artist, title and album
+in the boxes; nothing is written to the file until you press “Save changes”.</li>
+<li>The cover search uses it by itself when the file lacks tags and nothing was found by
+its name.</li>
+<li>Each file is listened to only once; the result is remembered.</li>
+</ul>
+<p>It needs the Internet. Phone apps that recognise music offline carry their own database
+of songs inside; a player cannot. Only the audio fingerprint and the length are sent, never
+the file.</p>
 """),
 
     ("valoraciones", "Ratings and statistics", """
@@ -428,6 +445,39 @@ playlist to add them at that point. A dropped skin is installed.</li>
 <li><b>Album art</b>: <kbd>Ctrl+Shift+A</kbd> opens the album cover in a window of the
 classic skin, which docks and resizes like the others.</li>
 </ul>
+<h3>Covers from the Internet</h3>
+<p>The cover your music carries always wins: the picture embedded in the file, the one MPD
+gives (<code>cover.jpg</code>…) or any picture in the album's folder. Only when there is
+none does Zebamp look on the Internet, and it would rather show nothing than show another
+record's cover:</p>
+<ol>
+<li>If the file has the album's MusicBrainz id in its tags (MusicBrainz Picard writes
+them), that is used: it is exact.</li>
+<li>Otherwise it searches by <b>artist and album</b> on MusicBrainz (Cover Art Archive),
+Deezer and iTunes, in that order. A result is accepted only if the title and the artist
+really match: “Greatest Hits 2” will not do for “Greatest Hits”, nor will the same title by
+another artist.</li>
+<li>Songs without an album tag are searched by <b>artist, title and length</b>, so that the
+studio version is not mistaken for a live one.</li>
+<li>If the file lacks tags, what its <b>name</b> says is used
+(“Artist - Title.mp3”).</li>
+<li>If it still does not turn up, and you have enabled it, Zebamp <b>recognises the song by
+its sound</b> (<a href="#info">more</a>) and uses the exact cover of its album.</li>
+</ol>
+<p>What is found is kept (once per album), and when nothing turns up it is not asked again
+for a week. Right-click on the album art window:</p>
+<ul>
+<li><b>This is not the cover: look for another</b>: discards it for good and tries the next
+match.</li>
+<li><b>Leave this album without a cover</b>: searches no more for that album.</li>
+<li><b>Look for the cover on the Internet</b>: searches now, even if a recent search found
+nothing.</li>
+<li><b>Look for covers on the Internet</b> (also in Menu › Options): turns the whole
+feature on or off. A search sends those services the artist and the album (or the title);
+nothing else.</li>
+</ul>
+<p>Downloaded covers are also used in notifications and desktop widgets. They are not
+written into your music files.</p>
 <h3>Compositors</h3>
 <p>The free windows that snap together need the compositor to say where the monitors are
 and to let Zebamp's window be placed. This is done and tested on <b>sway</b>. On
@@ -476,6 +526,8 @@ letters with a system font), title scrolling and speed, playlist font size.</li>
 <li><b>Audio (MPD)</b>: crossfade, MixRamp and ReplayGain.</li>
 <li><b>Scrobbling</b>: ListenBrainz and Last.fm accounts
 (<a href="#valoraciones">more</a>).</li>
+<li><b>Internet</b>: looking for covers and recognising songs by their sound
+(<a href="#info">more</a>).</li>
 </ul>
 <p><b>Language</b>: Menu › Options › Language (Spanish or English); it takes effect when
 Zebamp is restarted.</p>
@@ -528,7 +580,9 @@ itself every few seconds.</p>
 <h3>Covers are not shown</h3>
 <p>Zebamp asks MPD for them (embedded picture or <code>cover.jpg</code> in the folder). MPD
 must be able to read the files; after restarting MPD by hand as another user it may lack
-the permissions or the same configuration.</p>
+the permissions or the same configuration. If the music carries no cover, it is looked up
+on the Internet (<a href="#escritorio">more</a>): the artist and album (or title) tags need
+to be right.</p>
 <h3>The visualization does not move</h3>
 <p>MPD needs a <i>fifo</i> output (see <b>Preferences › Visualization</b>, which says
 whether data is arriving). Without a fifo, Zebamp tries to capture the audio from

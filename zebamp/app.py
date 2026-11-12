@@ -121,6 +121,9 @@ class ZebampApp:
         self.notifier = SongNotifier(self)
         from .stats import Stats
         self.stats = Stats(self.player)
+        from .stallwatch import StallWatch
+        self.stall_watch = StallWatch(self.player)
+        self.stall_watch.stalled.connect(lambda text: self.main_panel.set_temp_text(text))
         from .scrobble import Scrobbler
         self.scrobbler = Scrobbler(self.cfg, self.player, self.stats)
         from .sleeptimer import SleepTimer
@@ -716,6 +719,12 @@ class ZebampApp:
     def _toggle_cfg(self, key):
         self.cfg[key] = not self.cfg[key]
         self.cfg.save()
+
+    def toggle_cover_online(self):
+        """Look on the Internet for the covers the music does not carry."""
+        self.cfg["cover_online"] = not self.cfg["cover_online"]
+        self.cfg.save()
+        self.art_panel.load(force=True)
 
     def toggle_notify(self):
         self.cfg["notify_song"] = not self.cfg["notify_song"]
@@ -1409,6 +1418,8 @@ class ZebampApp:
                   checked=bool(self.cfg["close_to_tray"]))
         self._act(m, tr("Notificar cambio de canción"), self.toggle_notify,
                   checked=bool(self.cfg["notify_song"]))
+        self._act(m, tr("Buscar carátulas en Internet"), self.toggle_cover_online,
+                  checked=bool(self.cfg["cover_online"]))
         self._act(m, tr("Siempre visible"), self.toggle_always_on_top,
                   checked=self.cfg.get("always_on_top", False))
         m.addMenu(self.build_language_menu(m))

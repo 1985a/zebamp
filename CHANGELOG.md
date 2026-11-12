@@ -27,6 +27,17 @@ versiones según [PEP 440](https://peps.python.org/pep-0440/).
   compositores; el código que habla con el compositor vive ahora en
   `zebamp/compositor.py`.
 
+- **Carátulas de Internet** para la música que no trae ninguna: identificador
+  de MusicBrainz de las etiquetas, o artista + álbum (o artista + título +
+  duración) en MusicBrainz, Deezer e iTunes, aceptando solo coincidencias
+  estrictas. Se puede rechazar una carátula equivocada.
+- **Canciones sin etiquetas**: se usa el nombre del archivo («Artista -
+  Título») y, con una clave de AcoustID, se **reconocen por su sonido**
+  (huella de audio con `fpcalc`): para la carátula y, desde la ventana de
+  información, para proponer las etiquetas.
+- Detector de atascos: si MPD está en «play» sin avanzar, guarda un
+  diagnóstico del audio en `~/.cache/zebamp/atascos/`.
+
 ### Arreglado
 - Al mover la ventana principal a 2x o 3x, una ventana pegada (letras, lista)
   podía quedar 1 px desfasada y dejar de moverse con el grupo.
@@ -35,7 +46,7 @@ versiones según [PEP 440](https://peps.python.org/pep-0440/).
 ### Interno
 - Las ventanas de letras y carátula comparten el marco (`ui/genpanel.py`).
 - El índice de la biblioteca guarda el año (se reconstruye una vez).
-- 128 pruebas automáticas (eran 70).
+- 184 pruebas automáticas (eran 70).
 
 ## 1.0.0rc1 - 2026-11-08
 

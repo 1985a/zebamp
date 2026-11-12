@@ -148,6 +148,7 @@ class FileInfoDialog(QDialog):
             b2 = QPushButton(tr("Quitar carátula incrustada"))
             b2.clicked.connect(self._drop_cover)
             side.addWidget(b2)
+        self._add_identify(side)
         side.addStretch(1)
         lay.addLayout(side)
         if f:
@@ -162,6 +163,52 @@ class FileInfoDialog(QDialog):
             bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         bb.rejected.connect(self.close)
         form.addRow(bb)
+
+    # ---------------------------------------------------- recognise by sound
+    def _add_identify(self, side):
+        """"What song is this?": offered when it can work (a local file,
+        fpcalc installed and the user's AcoustID key)."""
+        from .. import songid
+        self._audio = songid.local_file(self.song, self.app.player.music_directory)
+        if not (self._audio and songid.available() and self.app.cfg["acoustid_key"]):
+            return
+        button = QPushButton(tr("Reconocer por el sonido…"))
+        button.clicked.connect(self._identify)
+        side.addWidget(button)
+        self.identified = QLabel()
+        self.identified.setWordWrap(True)
+        side.addWidget(self.identified)
+
+    def _identify(self):
+        from .. import songid
+        from ..threads import run_bg
+        self.identified.setText(tr("Escuchando la canción…"))
+        key, audio = self.app.cfg["acoustid_key"], self._audio
+        run_bg(lambda: songid.identify(audio, key, force=True), self._identified)
+
+    def _identified(self, result):
+        from .. import songid
+        try:
+            if isinstance(result, songid.BadKey):
+                self.identified.setText(tr("AcoustID no acepta la clave (Preferencias › Internet)"))
+            elif not isinstance(result, songid.Identified):
+                self.identified.setText(tr("No se reconoció la canción"))
+            else:
+                self._show_identified(result)
+        except RuntimeError:
+            pass                    # the window was closed while listening
+
+    def _show_identified(self, song):
+        text = f"{song.artist} - {song.title}"
+        if song.album:
+            text += f"\n{song.album}"
+        if self.edits:
+            # proposed in the boxes: nothing is written until the user saves
+            for key, value in (("artist", song.artist), ("title", song.title), ("album", song.album)):
+                if value and key in self.edits:
+                    self.edits[key].setText(value)
+            text += "\n" + tr("Revisa los datos y pulsa «Guardar cambios» para escribirlos en el archivo.")
+        self.identified.setText(text)
 
     # ------------------------------------------------------------ editing
     def _changes(self):
@@ -942,6 +989,10 @@ class PreferencesDialog(QDialog):
         self.scrobble = ScrobblePage(app)
         tabs.addTab(self.scrobble, "Scrobbling")
 
+        from .online_prefs import OnlinePage
+        self.online = OnlinePage(app)
+        tabs.addTab(self.online, "Internet")
+
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         bb.accepted.connect(self._save)
         bb.rejected.connect(self.reject)
@@ -964,6 +1015,7 @@ class PreferencesDialog(QDialog):
         cfg["eq_backend"] = self.eq_backend.currentText()
         cfg["balance_backend"] = self.bal.isChecked()
         self.scrobble.save(cfg)
+        self.online.save(cfg)
         cfg.save()
         app.scrobbler.configure()
         audio = (self.xfade.value(), self.mixramp_on.isChecked(), self.mixdb.value(),

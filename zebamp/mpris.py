@@ -154,8 +154,8 @@ def _make_service(app, bus, name):
                 self._art_uri = uri
                 self._art = ""
                 if uri:
-                    from .notify import fetch_cover_job
-                    self.pl.conn.run_async(fetch_cover_job(uri), lambda path, u=uri: self._got_art(u, path))
+                    from .notify import cover_job
+                    self.pl.conn.run_async(cover_job(self.app, s), lambda path, u=uri: self._got_art(u, path))
             self._changed()
 
         def _got_art(self, uri, path):

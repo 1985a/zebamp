@@ -18,16 +18,63 @@ CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cac
                      "zebamp", "covers")
 _COVER_NAMES = re.compile(r"^(cover|folder|front|album)[^/]*\.(jpe?g|png|webp|bmp)$", re.I)
 _IMAGE = re.compile(r"\.(jpe?g|png|webp|bmp)$", re.I)
+MIN_ONLINE_SIDE = 200       # pixels: smaller downloads are not accepted as covers
 
 
 def cover_path(uri: str) -> str:
     return os.path.join(CACHE, hashlib.md5(uri.encode("utf-8", "replace")).hexdigest() + ".png")
 
 
-def fetch_cover_job(uri: str):
-    """Worker-thread job: embedded picture, MPD's cover.*, then the folder."""
+def is_picture(data: bytes) -> bool:
+    """A download is only a cover if it decodes and is not a thumbnail."""
+    img = QImage.fromData(data)
+    return not img.isNull() and min(img.width(), img.height()) >= MIN_ONLINE_SIDE
+
+
+def cover_job(app, song: dict, force=False):
+    """The job that finds the cover of `song` the way the user set it up
+    (with or without looking on the Internet)."""
+    return fetch_cover_job(song.get("file", ""), song, bool(app.cfg["cover_online"]), force,
+                           app.cfg["acoustid_key"] or "")
+
+
+def _music_directory(client) -> str | None:
+    """MPD's music folder (it only tells local clients)."""
+    try:
+        return (client.config() or {}).get("music_directory") if hasattr(client, "config") else None
+    except Exception:
+        return None
+
+
+def fetch_cover_job(uri: str, song: dict | None = None, online=False, force=False, acoustid_key=""):
+    """Worker-thread job: embedded picture, MPD's cover.*, then the folder
+    and, if asked to and there is nothing local, the Internet (`force`
+    searches even if a recent search found nothing)."""
 
     def job(client):
+        local = _local_cover(client)
+        if local is None and online and song:
+            return _online_cover(client)
+        return local
+
+    def _online_cover(client):
+        """Search with the best names known; if the tags did not have them
+        and nothing turned up, recognise the song by its sound and try again."""
+        from . import songid
+        from .coverfind import online_cover
+        music_dir = _music_directory(client)
+        path = online_cover(songid.described(song, music_dir), is_picture, force=force)
+        audio = songid.can_identify(song, music_dir, acoustid_key) if path is None else None
+        if audio is None:
+            return path
+        try:
+            identified = songid.identify(audio, acoustid_key)
+        except songid.BadKey:
+            log.warning("AcoustID does not accept the application key")
+            return None
+        return online_cover(songid.described(song, music_dir), is_picture, force=force) if identified else None
+
+    def _local_cover(client):
         out = cover_path(uri)
         if os.path.exists(out) and os.path.getsize(out) > 0:
             return out
@@ -43,10 +90,7 @@ def fetch_cover_job(uri: str):
         img = QImage.fromData(data) if data else QImage()
         if img.isNull() and "://" not in uri:
             # like ncmpcpp's helper: any image in the album folder
-            try:
-                music = (client.config() or {}).get("music_directory") if hasattr(client, "config") else None
-            except Exception:
-                music = None
+            music = _music_directory(client)
             if music:
                 d = os.path.join(music, os.path.dirname(uri))
                 try:
@@ -106,7 +150,7 @@ class SongNotifier(QObject):
         if pl.state != "play" or not uri or key == self._last_uri:
             return
         self._last_uri = key
-        pl.conn.run_async(fetch_cover_job(uri), lambda path, s=dict(song): self._send(s, path))
+        pl.conn.run_async(cover_job(self.app, song), lambda path, s=dict(song): self._send(s, path))
 
     @staticmethod
     def _key(song):

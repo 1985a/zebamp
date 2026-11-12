@@ -16,6 +16,7 @@ optdepends=('mpd: a local music server to control'
             'python-dbus: media keys, playerctl and waybar (MPRIS)'
             'pipewire: equalizer and visualisation without a fifo'
             'projectm: MilkDrop visualisation'
+            'chromaprint: recognise untagged songs by their sound (fpcalc)'
             'libnotify: song change notifications'
             'gcc: builds the MilkDrop bridge on first use')
 provides=('zebamp')

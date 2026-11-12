@@ -358,6 +358,24 @@ etiquetas, el formato del audio, la carátula y la ruta.</p>
 escribir en el archivo, Zebamp te enseña los cambios y te pide <b>confirmación</b>. Después
 avisa a MPD para que actualice su base de datos. Solo funciona con archivos locales que
 puedas modificar.</p>
+<h3>Reconocer una canción por su sonido</h3>
+<p>Para los archivos sin etiquetas ni nombre útil, Zebamp puede averiguar qué canción es
+escuchándola: calcula una <i>huella de audio</i> del archivo y la consulta en la base de datos
+pública <b>AcoustID</b>, que responde con el artista, el título y el álbum.</p>
+<ul>
+<li>Se activa poniendo tu clave en <b>Preferencias › Internet</b>. La clave es gratuita: se
+crea en acoustid.org/new-application. Hace falta también el programa <code>fpcalc</code>
+(paquete <code>chromaprint</code>).</li>
+<li>En la ventana de información, <b>Reconocer por el sonido…</b> propone artista, título y
+álbum en las casillas; no se escribe nada en el archivo hasta que pulses «Guardar
+cambios».</li>
+<li>La búsqueda de carátulas lo usa sola cuando al archivo le faltan las etiquetas y no
+encontró nada por su nombre.</li>
+<li>Cada archivo se escucha una sola vez; el resultado se recuerda.</li>
+</ul>
+<p>Necesita Internet. Los programas del teléfono que reconocen música sin conexión llevan
+dentro su propia base de datos de canciones; un reproductor no puede llevarla. Solo se
+envía la huella de audio y la duración, nunca el archivo.</p>
 """),
 
     ("valoraciones", "Valoraciones y estadísticas", """
@@ -442,6 +460,37 @@ reproducirlos, o sobre la lista para añadirlos en ese punto. Un skin soltado se
 <li><b>Carátula</b>: <kbd>Ctrl+Shift+A</kbd> abre la carátula del álbum en una ventana del
 skin clásico, que se pega y se redimensiona como las demás.</li>
 </ul>
+<h3>Carátulas de Internet</h3>
+<p>La carátula de tu música manda siempre: la imagen incrustada en el archivo, la que da MPD
+(<code>cover.jpg</code>…) o cualquier imagen de la carpeta del álbum. Solo si no hay ninguna,
+Zebamp la busca en Internet, y prefiere no mostrar nada antes que mostrar la de otro disco:</p>
+<ol>
+<li>Si el archivo lleva el identificador de MusicBrainz del álbum en sus etiquetas (los pone
+MusicBrainz Picard), se usa ese: es exacto.</li>
+<li>Si no, busca por <b>artista y álbum</b> en MusicBrainz (Cover Art Archive), Deezer e
+iTunes, en ese orden. Solo acepta un resultado si el título y el artista coinciden de
+verdad: «Grandes éxitos 2» no vale para «Grandes éxitos», ni el mismo título de otro
+artista.</li>
+<li>Las canciones sin etiqueta de álbum se buscan por <b>artista, título y duración</b>, para
+no confundir la versión de estudio con una en directo.</li>
+<li>Si al archivo le faltan las etiquetas, se usa lo que diga su <b>nombre</b>
+(«Artista - Título.mp3»).</li>
+<li>Si aun así no aparece, y lo has activado, Zebamp <b>reconoce la canción por su sonido</b>
+(<a href="#info">más</a>) y usa la carátula exacta de su álbum.</li>
+</ol>
+<p>Lo encontrado se guarda (una vez por álbum) y si no aparece nada no se vuelve a preguntar
+en una semana. Clic derecho sobre la ventana de carátula:</p>
+<ul>
+<li><b>No es esta carátula: buscar otra</b>: la descarta para siempre y prueba con la
+siguiente coincidencia.</li>
+<li><b>Dejar este álbum sin carátula</b>: no busca más para ese álbum.</li>
+<li><b>Buscar la carátula en Internet</b>: busca ahora, aunque hace poco no se encontrara.</li>
+<li><b>Buscar carátulas en Internet</b> (también en Menú › Opciones): activa o desactiva
+toda la función. Al buscar se envían a esos servicios el artista y el álbum (o el título);
+nada más.</li>
+</ul>
+<p>Las carátulas descargadas se usan también en las notificaciones y en los widgets del
+escritorio. No se escriben en tus archivos de música.</p>
 <h3>Compositores</h3>
 <p>Las ventanas sueltas con imán necesitan que el compositor diga dónde están los monitores
 y deje colocar la ventana de Zebamp. Está hecho y probado en <b>sway</b>. En <b>Hyprland</b>
@@ -487,6 +536,8 @@ de la lista.</li>
 <li><b>Audio (MPD)</b>: fundido, MixRamp y ReplayGain.</li>
 <li><b>Scrobbling</b>: cuentas de ListenBrainz y Last.fm
 (<a href="#valoraciones">más</a>).</li>
+<li><b>Internet</b>: buscar carátulas y reconocer canciones por su sonido
+(<a href="#info">más</a>).</li>
 </ul>
 <p><b>Idioma</b>: Menú › Opciones › Idioma (español o inglés); se aplica al reiniciar
 Zebamp.</p>
@@ -539,7 +590,9 @@ pocos segundos.</p>
 <h3>No se ven las carátulas</h3>
 <p>Zebamp las pide a MPD (imagen incrustada o <code>cover.jpg</code> en la carpeta). MPD debe
 poder leer los archivos; tras reiniciar MPD a mano con otro usuario puede no tener permisos o
-la misma configuración.</p>
+la misma configuración. Si la música no trae carátula, se busca en Internet
+(<a href="#escritorio">más</a>): hacen falta las etiquetas de artista y álbum (o título) bien
+escritas.</p>
 <h3>La visualización no se mueve</h3>
 <p>MPD necesita una salida <i>fifo</i> (ver <b>Preferencias › Visualización</b>, que indica
 si llegan datos). Si no hay fifo, Zebamp intenta capturar el audio de PipeWire.</p>

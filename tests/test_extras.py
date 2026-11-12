@@ -569,6 +569,168 @@ class AppFeaturesTest(unittest.TestCase):
         app.toggle_art_panel()
         self.assertNotIn(app.art_panel, app.visible_panels())
 
+    def _png(self, side: int) -> bytes:
+        from PySide6.QtCore import QBuffer, QIODevice
+        from PySide6.QtGui import QColor, QImage
+        image = QImage(side, side, QImage.Format.Format_RGB32)
+        image.fill(QColor("#2060c0"))
+        buffer = QBuffer()
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        image.save(buffer, "PNG")
+        return bytes(buffer.data())
+
+    def test_cover_from_the_internet_when_there_is_none_local(self):
+        """Dir B has no picture: the cover comes from the (faked) Internet,
+        can be rejected, and a thumbnail is not accepted as a cover."""
+        from unittest import mock
+        from zebamp import coverfind
+        app = self.app
+        folder = os.path.join(self.tmp, "music", "B")
+        os.makedirs(folder, exist_ok=True)
+        shutil.copy(os.path.join(self.tmp, "music", "A", "00.wav"), os.path.join(folder, "uno.wav"))
+        update = ["mpc", "-h", f"{self.tmp}/sock", "update", "--wait"]
+        subprocess.run(update, capture_output=True)
+
+        def remove_folder():            # the other tests count the songs of the library
+            shutil.rmtree(folder, ignore_errors=True)
+            subprocess.run(update, capture_output=True)
+        self.addCleanup(remove_folder)
+        song = {"file": "B/uno.wav", "artist": "Los Píxeles", "album": "Noches de neón", "title": "Uno"}
+        answers = {"musicbrainz": {"releases": [{"id": "r1", "title": "Noches de neón",
+                                                 "artist-credit": [{"name": "Los Píxeles"}]}]},
+                   "deezer": {"data": [{"id": 5, "title": "Noches de neón", "artist": {"name": "Los Píxeles"},
+                                        "cover_xl": "https://cdn/images/cover/abc/1000.jpg"}]}}
+        pictures = {"https://coverartarchive.org/release/r1/front-500": self._png(40),      # a thumbnail
+                    "https://cdn/images/cover/abc/1000.jpg": self._png(300)}
+        asked = []
+
+        def get_json(url):
+            asked.append(url)
+            return next((a for host, a in answers.items() if host in url), {})
+
+        def get_image(url):
+            asked.append(url)
+            return pictures.get(url)
+        with mock.patch.object(coverfind, "fetch_json", get_json), \
+                mock.patch.object(coverfind, "fetch_image", get_image), mock.patch.object(app.player, "song", song):
+            app.cfg["show_art_panel"] = True
+            app.relayout()
+            panel = app.art_panel
+            panel._uri = None
+            panel.load()
+            wait(700)
+            self.assertTrue(panel.shows_online_cover())
+            self.assertEqual(panel._cover.width(), 300)              # the 40 px one was refused
+            self.assertEqual(coverfind.CoverCache().meta(coverfind.query_from_song(song))["ident"], "deezer:5")
+            seen = len(asked)
+            panel._uri = None
+            panel.load()
+            wait(400)
+            self.assertEqual(len(asked), seen)                       # second time from disk
+            panel.reject_cover()                                     # "this is not the cover"
+            wait(700)
+            self.assertTrue(panel._cover.isNull())                   # nothing else matched
+            self.assertFalse(panel.shows_online_cover())
+            app.cfg["cover_online"] = False                          # switched off: the Internet is not asked
+            seen = len(asked)
+            panel.search_online()
+            wait(400)
+            self.assertEqual(len(asked), seen)
+        app.cfg["cover_online"] = True
+        app.cfg["show_art_panel"] = False
+        app.relayout()
+
+    def test_recognise_by_sound_proposes_tags_without_writing_them(self):
+        from unittest import mock
+        from zebamp import songid
+        from zebamp.ui.dialogs import FileInfoDialog
+        app = self.app
+        song = dict(app.player.queue[1])
+        plain = FileInfoDialog(app, song)                # no key: the button is not offered
+        self.assertFalse(hasattr(plain, "identified"))
+        plain.close()
+        app.cfg["acoustid_key"] = "KEY"
+        found = songid.Identified("Los Píxeles", "Lluvia sobre el asfalto", "Noches de neón", "rec", "grp", 0.97)
+        with mock.patch.object(songid, "available", return_value=True), \
+                mock.patch.object(songid, "identify", return_value=found) as identify:
+            dialog = FileInfoDialog(app, song)
+            self.assertTrue(hasattr(dialog, "identified"))
+            dialog._identify()
+            wait(500)
+            self.assertEqual(identify.call_args.args, (os.path.join(self.tmp, "music", song["file"]), "KEY"))
+            self.assertIn("Los Píxeles - Lluvia sobre el asfalto", dialog.identified.text())
+            if dialog.edits:                             # editable file: proposed, to be saved by the user
+                self.assertEqual(dialog.edits["artist"].text(), "Los Píxeles")
+                self.assertEqual(dialog.edits["album"].text(), "Noches de neón")
+                self.assertTrue(dialog.save_btn.isEnabled())
+        with mock.patch.object(songid, "available", return_value=True), \
+                mock.patch.object(songid, "identify", return_value=None):
+            dialog._identify()
+            wait(400)
+            self.assertEqual(dialog.identified.text(), "No se reconoció la canción")
+        with mock.patch.object(songid, "available", return_value=True), \
+                mock.patch.object(songid, "identify", side_effect=songid.BadKey):
+            dialog._identify()
+            wait(400)
+            self.assertIn("no acepta la clave", dialog.identified.text())
+        dialog.close()
+        app.cfg["acoustid_key"] = ""
+
+    def test_untagged_file_gets_its_cover_through_its_sound(self):
+        """No tags, no cover found by the file name: the song is recognised
+        by its sound and the album's exact cover is used."""
+        from unittest import mock
+        from zebamp import coverfind, songid
+        from zebamp.notify import fetch_cover_job
+        folder = os.path.join(self.tmp, "music", "C")
+        os.makedirs(folder, exist_ok=True)
+        shutil.copy(os.path.join(self.tmp, "music", "A", "00.wav"), os.path.join(folder, "pista.wav"))
+        update = ["mpc", "-h", f"{self.tmp}/sock", "update", "--wait"]
+        subprocess.run(update, capture_output=True)
+
+        def remove_folder():
+            shutil.rmtree(folder, ignore_errors=True)
+            subprocess.run(update, capture_output=True)
+        self.addCleanup(remove_folder)
+        answer = {"status": "ok", "results": [{"score": 0.96, "recordings": [
+            {"id": "rec", "title": "Lluvia sobre el asfalto", "artists": [{"name": "Los Píxeles"}],
+             "releasegroups": [{"id": "grp", "title": "Noches de neón", "type": "Album"}]}]}]}
+        exact = "https://coverartarchive.org/release-group/grp/front-500"
+        asked, got = [], []
+
+        def get_image(url):
+            asked.append(url)
+            return self._png(300) if url == exact else None
+        with mock.patch.object(coverfind, "fetch_json", return_value={}), \
+                mock.patch.object(coverfind, "fetch_image", get_image), \
+                mock.patch.object(songid, "available", return_value=True), \
+                mock.patch.object(songid, "fingerprint", return_value=(4.0, "PRINT")), \
+                mock.patch.object(songid, "ask_acoustid", return_value=answer) as ask:
+            job = fetch_cover_job("C/pista.wav", {"file": "C/pista.wav"}, online=True, acoustid_key="KEY")
+            self.app.player.conn.run_async(job, got.append)
+            wait(900)
+            self.assertEqual(ask.call_count, 1)
+            self.assertTrue(got and got[0] and os.path.exists(got[0]), got)
+            self.assertEqual(asked[-1], exact)
+            # without a key the same file is left alone (file name only)
+            got.clear()
+            job = fetch_cover_job("C/pista.wav", {"file": "C/pista.wav", "x": 1}, online=True, acoustid_key="")
+            self.app.player.conn.run_async(job, got.append)
+            wait(600)
+            self.assertEqual(ask.call_count, 1)
+
+    def test_local_cover_wins_over_the_internet(self):
+        from unittest import mock
+        from zebamp import coverfind
+        from zebamp.notify import fetch_cover_job
+        song = {"file": "A/01.wav", "artist": "Los Píxeles", "album": "Noches de neón"}
+        got = []
+        with mock.patch.object(coverfind, "fetch_json", side_effect=AssertionError("asked the Internet")), \
+                mock.patch.object(coverfind, "fetch_image", side_effect=AssertionError("asked the Internet")):
+            self.app.player.conn.run_async(fetch_cover_job("A/01.wav", song, online=True), got.append)
+            wait(700)
+        self.assertTrue(got and got[0] and got[0].endswith(".png"), got)
+
     def test_art_panel_resizes_in_steps(self):
         app = self.app
         app.cfg["art_width"], app.cfg["art_height"] = 2, 3
@@ -759,6 +921,68 @@ class CompositorTest(unittest.TestCase):
             compositor.Hyprland().move_window("Zebamp", 1920, 30)
         self.assertEqual(calls[1:], [["hyprctl", "dispatch", "setfloating", "address:0xabc"],
                                      ["hyprctl", "dispatch", "movewindowpixel", "exact 1920 30,address:0xabc"]])
+
+
+class StallDetectorTest(unittest.TestCase):
+    def feed(self, detector, rows):
+        return [detector.feed(*row) for row in rows]
+
+    def test_reports_once_when_playing_without_advancing(self):
+        from zebamp.stallwatch import StallDetector
+        d = StallDetector(threshold=3)
+        got = self.feed(d, [("play", "0.000", "7", 0), ("play", "0.000", "7", 1), ("play", "0.000", "7", 2),
+                            ("play", "0.000", "7", 3), ("play", "0.000", "7", 4), ("play", "0.000", "7", 9)])
+        self.assertEqual(got, [False, False, False, True, False, False])
+
+    def test_normal_playback_pause_and_song_changes_are_not_stalls(self):
+        from zebamp.stallwatch import StallDetector
+        d = StallDetector(threshold=3)
+        advancing = [("play", f"{t}.000", "7", t) for t in range(8)]
+        self.assertEqual(self.feed(d, advancing), [False] * 8)
+        paused = [("pause", "7.000", "7", t) for t in range(8, 20)]
+        self.assertEqual(self.feed(d, paused), [False] * 12)
+        # same position but another song each second (skipping through a list)
+        skipping = [("play", "0.000", str(n), 20 + n) for n in range(6)]
+        self.assertEqual(self.feed(d, skipping), [False] * 6)
+
+    def test_a_second_stall_is_reported_again(self):
+        from zebamp.stallwatch import StallDetector
+        d = StallDetector(threshold=2)
+        self.assertEqual(self.feed(d, [("play", "5.0", "1", 0), ("play", "5.0", "1", 2)]), [False, True])
+        self.assertEqual(self.feed(d, [("stop", None, None, 3), ("play", "0.0", "1", 4), ("play", "0.0", "1", 6)]),
+                         [False, False, True])
+
+    def test_snapshot_keeps_the_audio_graph_and_only_the_newest_files(self):
+        from unittest import mock
+        import json
+        from zebamp import stallwatch
+        node, link, meta = "PipeWire:Interface:Node", "PipeWire:Interface:Link", "PipeWire:Interface:Metadata"
+        stream = {"node.name": "mpd.MPD", "media.class": "Stream/Output/Audio"}
+        dump = [{"id": 1, "type": node, "info": {"state": "suspended", "error": None, "params": {"Format": []},
+                                                 "props": stream}},
+                {"id": 2, "type": node, "info": {"state": "running",
+                                                 "props": {"node.name": "sink", "media.class": "Audio/Sink"}}},
+                {"id": 3, "type": node, "info": {"props": {"node.name": "cam", "media.class": "Video/Source"}}},
+                {"id": 9, "type": link, "info": {"output-node-id": 1, "input-node-id": 2, "state": "error"}},
+                {"id": 5, "type": meta, "metadata": [{"subject": 1, "key": "target.object", "value": "sink"},
+                                                     {"subject": 0, "key": "other", "value": 1}]},
+                "junk"]
+        graph = stallwatch.audio_graph([o for o in dump if isinstance(o, dict)])
+        self.assertEqual([n["name"] for n in graph["nodes"]], ["mpd.MPD", "sink"])
+        self.assertEqual(graph["links"], [{"id": 9, "from": "mpd.MPD", "to": "sink", "state": "error", "error": None,
+                                           "format": None}])
+        self.assertEqual(graph["metadata"], [{"subject": "mpd.MPD", "key": "target.object", "value": "sink"}])
+        folder = tempfile.mkdtemp(prefix="zebamp-stall-")
+        for n in range(stallwatch.KEEP_SNAPSHOTS + 3):
+            open(os.path.join(folder, f"atasco-20200101-0000{n:02d}.json"), "w").close()
+        with mock.patch.object(stallwatch, "_run", return_value="not json"):      # tools missing or broken
+            path = stallwatch.take_snapshot({"state": "play", "elapsed": "0.000"}, {"file": "a.flac", "x": 1}, folder)
+        with open(path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        self.assertEqual(saved["song"], {"file": "a.flac", "format": None, "duration": None})
+        self.assertEqual(saved["pipewire"], {"nodes": [], "links": [], "metadata": []})
+        self.assertEqual(len(os.listdir(folder)), stallwatch.KEEP_SNAPSHOTS)
+        self.assertIn(os.path.basename(path), os.listdir(folder))
 
 
 REPO = os.path.join(os.path.dirname(__file__), "..")
