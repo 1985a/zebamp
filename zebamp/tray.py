@@ -7,6 +7,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from .player import song_title
+from .i18n import tr
 
 
 class Tray:
@@ -50,21 +51,21 @@ class Tray:
             t = m.addAction(song_title(p.song)[:60])
             t.setEnabled(False)
             m.addSeparator()
-        m.addAction("Pausa" if p.state == "play" else "Reproducir", p.toggle_play)
-        m.addAction("Detener", p.stop)
-        m.addAction("Anterior", p.previous)
-        m.addAction("Siguiente", p.next)
+        m.addAction(tr("Pausa") if p.state == "play" else tr("Reproducir"), p.toggle_play)
+        m.addAction(tr("Detener"), p.stop)
+        m.addAction(tr("Anterior"), p.previous)
+        m.addAction(tr("Siguiente"), p.next)
         m.addSeparator()
-        r = m.addMenu("Valorar")
+        r = m.addMenu(tr("Valorar"))
         for n in range(5, -1, -1):
-            r.addAction("★" * n if n else "Sin valoración", lambda n=n: a.stats.rate_current(n))
-        m.addAction("Buscar canciones…", a.show_search)
-        m.addAction("Radio por Internet…", a.show_radio)
-        m.addAction("Letras…", a.open_lyrics)
-        m.addAction("Ayuda…", a.show_help)
+            r.addAction("★" * n if n else tr("Sin valoración"), lambda n=n: a.stats.rate_current(n))
+        m.addAction(tr("Buscar canciones…"), a.show_search)
+        m.addAction(tr("Radio por Internet…"), a.show_radio)
+        m.addAction(tr("Letras…"), a.open_lyrics)
+        m.addAction(tr("Ayuda…"), a.show_help)
         m.addSeparator()
-        m.addAction("Ocultar ventana" if a.is_visible() else "Mostrar ventana", a.toggle_visible)
-        m.addAction("Salir", a.quit)
+        m.addAction(tr("Ocultar ventana") if a.is_visible() else tr("Mostrar ventana"), a.toggle_visible)
+        m.addAction(tr("Salir"), a.quit)
 
     def hide(self):
         if self.icon is not None:

@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import base64
 import os
+from .i18n import tr
 
-FIELDS = [("title", "Título"), ("artist", "Artista"), ("album", "Álbum"),
-          ("albumartist", "Artista del álbum"), ("date", "Año"), ("genre", "Género"),
-          ("tracknumber", "Pista"), ("discnumber", "Disco"), ("composer", "Compositor")]
+FIELDS = [("title", tr("Título")), ("artist", tr("Artista")), ("album", tr("Álbum")),
+          ("albumartist", tr("Artista del álbum")), ("date", tr("Año")), ("genre", tr("Género")),
+          ("tracknumber", tr("Pista")), ("discnumber", tr("Disco")), ("composer", tr("Compositor"))]
 
 
 def available() -> bool:

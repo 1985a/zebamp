@@ -6,6 +6,12 @@ Usa skins **clásicos** (`.wsz`) y **modernos** (`.wal`, Winamp 3/5).
 Zebamp no reproduce audio por su cuenta: es un cliente de MPD. Todo lo que hace
 (reproducir, cola, volumen, listas guardadas, biblioteca) va contra tu servidor MPD.
 
+*English speakers: the interface and its built-in help are also in English
+(Menu › Options › Language, or `zebamp --lang en`). A summary in English is
+[at the end of this page](#in-english).*
+
+![Zebamp con su skin propio: ventana principal, ecualizador, lista, letras y carátula](docs/capturas/clasico.png)
+
 ## Instalación
 
 Requisitos (nombres de paquetes de Arch Linux):
@@ -17,6 +23,14 @@ Requisitos (nombres de paquetes de Arch Linux):
 | Teclas multimedia (MPRIS) | `python-dbus` |
 | Ecualizador y captura de audio | `pipewire` (`pw-record`, `pw-dump`) |
 | MilkDrop | `projectm` y `gcc` (el puente C++ se compila solo la primera vez) |
+
+En **Arch Linux**, como paquete (se actualiza con `git pull` y otro `makepkg -si`):
+
+```sh
+git clone https://github.com/1985a/zebamp.git
+cd zebamp/packaging
+makepkg -si
+```
 
 Desde el código (el lanzador busca la carpeta en `~/proyectos/zebamp`, o en
 `ZEBAMP_HOME`):
@@ -158,6 +172,27 @@ arrastrar a la lista. Usa el marco `gen.bmp` y los colores `genex.bmp` del skin.
 saltar a tiempo (Ctrl+J), explorador de skins con vista previa (Alt+S),
 preferencias, salidas de audio de MPD, actualizar base de datos, fundido.
 
+**Listas inteligentes**: listas por reglas («género contiene rock, valoración
+al menos 4, días sin escucharla al menos 30») que se mantienen solas; se crean
+en la biblioteca.
+
+![Biblioteca de medios con dos listas inteligentes](docs/capturas/listas-inteligentes.png)
+
+**Scrobbling** a ListenBrainz y Last.fm (apagado hasta que lo actives en
+Preferencias › Scrobbling); sin conexión guarda las escuchas y las envía
+después.
+
+**Carátula** (Ctrl+Shift+A): ventana del skin clásico con la carátula del
+álbum, acoplable y redimensionable como las demás.
+
+**Temporizador de apagado**: pausa en N minutos o al terminar el álbum (Menú ›
+Opciones).
+
+**Varios servidores MPD**: perfiles para cambiar de servidor desde Menú › MPD ›
+Servidor.
+
+**Idioma**: español o inglés (Menú › Opciones › Idioma).
+
 ## Skins
 
 Carpeta: `~/.local/share/zebamp/skins` (Alt+S → «Añadir skin…» los copia ahí).
@@ -191,13 +226,18 @@ aparece dentro de Bento/Big Bento y en la ventana «Media Library»; sus título
 
 ### Limitaciones conocidas
 
-* Skins modernos: compatibilidad **parcial**. Los que dependen de componentes
-  internos de Winamp (biblioteca embebida, vídeo, AVS, navegador) o de la
-  librería «Freeform» de Winamp muestran esas partes vacías o simplificadas.
-  Métodos MAKI no implementados devuelven valores neutros en vez de fallar.
+* Skins modernos: compatibilidad **parcial**. La pestaña de visualización
+  (AVS) puede mostrar el analizador o MilkDrop (Menú › Visualización › Pestaña
+  de visualización del skin). Las pestañas de **vídeo** y **navegador** se
+  ocultan: MPD solo reproduce audio, y un navegador dentro del reproductor no
+  compensa lo que pesa. Los skins que dependen de la librería «Freeform» de
+  Winamp muestran esas partes simplificadas. Métodos MAKI no implementados
+  devuelven valores neutros en vez de fallar.
 * Wayland no permite que una aplicación coloque sus ventanas: Zebamp usa un
-  lienzo transparente del tamaño del monitor (ver docs/ARQUITECTURA.md).
-  Probado en sway; en otros compositores la colocación puede diferir.
+  lienzo transparente del tamaño del monitor (ver docs/ARQUITECTURA.md) y se lo
+  pide al compositor. Hecho y probado en **sway**; en **Hyprland** usa
+  `hyprctl` (experimental, sin probar en un equipo real); en los demás (KDE,
+  GNOME…) funciona con la geometría de Qt y la colocación puede diferir.
   «Siempre visible» no tiene efecto en Wayland.
 
 ## Atajos (como Winamp)
@@ -214,6 +254,7 @@ aparece dentro de Bento/Big Bento y en la ventana «Media Library»; sus título
 | Ctrl+D | tamaño doble | Ctrl+W | modo compacto |
 | Ctrl+T | tiempo restante | Ctrl+Q | salir |
 | Ctrl+Shift+L | letras | F1 | ayuda |
+| Ctrl+Shift+A | carátula | | |
 
 En la lista: flechas/RePág/AvPág/Inicio/Fin (Shift amplía), Enter reproduce,
 Supr quita, Shift+Supr recorta, Ctrl+Supr vacía, Ctrl+A / Ctrl+I seleccionan,
@@ -226,7 +267,8 @@ python -m unittest discover -s tests
 ```
 
 Las pruebas arrancan un MPD privado (salida nula) en un directorio temporal:
-nunca tocan tu MPD. Incluyen clics y teclas reales sobre la interfaz.
+nunca tocan tu MPD. Incluyen clics y teclas reales sobre la interfaz. En GitHub
+se ejecutan solas con cada cambio (`.github/workflows/tests.yml`).
 
 ## Licencia
 
@@ -255,3 +297,25 @@ enviar un cambio:
 uvx ruff check .
 python -m unittest discover -s tests
 ```
+
+## In English
+
+Zebamp is a Winamp 2.x/5-style player for **MPD**, written in Python with Qt 6
+(PySide6). It uses Winamp skins as they are: **classic** (`.wsz`) and
+**modern** (`.wal`, Winamp 3/5, with their MAKI scripts). It does not play
+audio itself: MPD does, and Zebamp is its remote control.
+
+* Free-floating skin windows that snap together, on Wayland (sway; Hyprland
+  experimental).
+* 10-band equalizer as a PipeWire filter, spectrum analyzer, oscilloscope and
+  MilkDrop (projectM).
+* Instant search over 100 000+ songs, media library, smart lists by rules,
+  ratings and play counts kept in MPD stickers.
+* Synced lyrics, album art window, Internet radio, bookmarks, tag editor.
+* Scrobbling to ListenBrainz and Last.fm, MPRIS, tray icon, notifications,
+  sleep timer, several MPD servers.
+
+Install on Arch Linux with `cd packaging && makepkg -si`, start it with
+`zebamp --lang en` and choose **Menu › Options › Language › English** to keep
+it. Press **F1** in any window for the full guide. Licensed under the GNU GPL
+v3.0 or later.

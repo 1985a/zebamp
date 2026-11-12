@@ -20,6 +20,9 @@ DEFAULTS = {
     "mpd_host": "",          # "" = autodetect (MPD_HOST, mpd.conf, ~/.mpd/socket)
     "mpd_port": 6600,
     "mpd_password": "",
+    "mpd_profiles": [],      # [{name, host, port, password}]: servers to switch between
+    "mpd_profile": "",       # name of the profile in use ("" = none)
+    "language": "es",        # es | en | auto (el del sistema); se aplica al iniciar
     "skin": "",              # path to .wsz/.wal or folder; "" = built-in
     "skin_dirs": [SKIN_DIR],
     "scale": 0,              # 0 = automático según la resolución de la pantalla
@@ -31,6 +34,7 @@ DEFAULTS = {
     "classic_positions": {},
     "modern_layout": "free",  # free: ventanas sueltas con imán | fixed: todas pegadas | separate
     "modern_positions": {},
+    "modern_vis_slot": "spectrum",   # pestaña de visualización del skin: spectrum | milkdrop
     "modern_gamma": {},      # tema de color (gammaset) elegido por skin  # posiciones guardadas por skin (modo free)
     "show_eq": True,
     "show_playlist": True,
@@ -43,6 +47,9 @@ DEFAULTS = {
     "ly_width": 0,
     "ly_height": 2,
     "ly_font_size": 12,
+    "show_art_panel": False,      # classic skins: album art window
+    "art_width": 0,
+    "art_height": 6,              # 275 x 290: a square picture
     "time_remaining": False,
     "vis_mode": "spectrum",  # spectrum | oscilloscope | off
     "vis_fifo": "",          # "" = autodetect from mpd.conf
@@ -98,10 +105,21 @@ DEFAULTS = {
     "milkdrop_texture": 1024,
     "close_to_tray": False,
     "bookmarks": [],           # [{file, title, pos}]
+    "smart_lists": [],         # listas por reglas (ver smartlist.py)
     "radio_favorites": [],    # cerrar la ventana la oculta en la bandeja
     "notify_song": True,       # notificación con carátula al cambiar de canción
     "notify_timeout": 5,       # segundos
     "scroll_title_in_taskbar": False,
+    # scrobbling (off until the user enables a service in Preferences)
+    "listenbrainz_enabled": False,
+    "listenbrainz_token": "",
+    "listenbrainz_url": "",    # "" = listenbrainz.org; otro servidor compatible (p. ej. Maloja)
+    "lastfm_enabled": False,
+    "lastfm_api_key": "",      # la clave y el secreto los crea cada usuario en last.fm/api
+    "lastfm_secret": "",
+    "lastfm_session": "",
+    "lastfm_user": "",
+    "lastfm_url": "",          # "" = Last.fm; otro servidor compatible (p. ej. Libre.fm)
 }
 
 

@@ -20,7 +20,8 @@ from PySide6.QtCore import QObject, QTimer, Signal
 log = logging.getLogger(__name__)
 
 CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "zebamp")
-FIELDS = ("file", "title", "artist", "album", "albumartist", "genre", "duration")
+FIELDS = ("file", "title", "artist", "album", "albumartist", "genre", "duration", "date")
+CACHE_VERSION = 3      # bump when FIELDS change: older caches are rebuilt
 CHUNK = 5000
 
 
@@ -40,7 +41,7 @@ def _row(song: dict) -> list:
     dur = song.get("duration") or song.get("time") or ""
     return [song.get("file", ""), _first(song.get("title")), _first(song.get("artist")),
             _first(song.get("album")), _first(song.get("albumartist")), _first(song.get("genre")),
-            dur]
+            dur, _first(song.get("date"))]
 
 
 def _hay(row) -> str:
@@ -77,7 +78,7 @@ class LibraryIndex(QObject):
             try:
                 with open(path, encoding="utf-8") as fh:
                     data = json.load(fh)
-                if data.get("stamp") == stamp and data.get("v") == 2:
+                if data.get("stamp") == stamp and data.get("v") == CACHE_VERSION:
                     return stamp, data["rows"], data["hay"], False
             except (OSError, ValueError, KeyError):
                 pass
@@ -111,7 +112,7 @@ class LibraryIndex(QObject):
                 os.makedirs(CACHE, exist_ok=True)
                 tmp = self._cache_path() + ".tmp"
                 with open(tmp, "w", encoding="utf-8") as fh:
-                    json.dump({"v": 2, "stamp": stamp, "rows": rows, "hay": hay}, fh,
+                    json.dump({"v": CACHE_VERSION, "stamp": stamp, "rows": rows, "hay": hay}, fh,
                               ensure_ascii=False, separators=(",", ":"))
                 os.replace(tmp, self._cache_path())
             except OSError as e:

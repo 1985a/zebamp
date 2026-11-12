@@ -2,98 +2,9 @@
 freely on Wayland (where an app cannot place its own top-level windows)."""
 from __future__ import annotations
 
-import json
-import os
-import subprocess
-
 from PySide6.QtCore import QPoint, QRect
 
-
-def fit_to_workspace(widget) -> tuple[int, int] | None:
-    """Size of the workspace holding `widget`; on sway also move it there."""
-    if os.environ.get("SWAYSOCK"):
-        try:
-            tree = json.loads(subprocess.run(["swaymsg", "-t", "get_tree"], capture_output=True,
-                                             text=True, timeout=2).stdout or "{}")
-        except (OSError, ValueError, subprocess.SubprocessError):
-            tree = None
-        if tree:
-            me, title = os.getpid(), widget.windowTitle()
-            found = []
-
-            def walk(n, ws):
-                if n.get("type") == "workspace":
-                    ws = n
-                if n.get("pid") == me and n.get("name") == title and n.get("type") == "floating_con":
-                    found.append((n, ws))
-                for ch in n.get("nodes", []) + n.get("floating_nodes", []):
-                    walk(ch, ws)
-            walk(tree, None)
-            if found and found[0][1] is not None:
-                node, ws = found[0]
-                r = ws["rect"]
-                if (node["rect"]["x"], node["rect"]["y"]) != (r["x"], r["y"]):
-                    subprocess.run(["swaymsg", f"[con_id={node['id']}] move absolute position {r['x']} {r['y']}"],
-                                   capture_output=True, timeout=2)
-                return int(r["width"]), int(r["height"])
-    scr = widget.screen()
-    if scr is not None:
-        g = scr.availableGeometry()
-        return g.width(), g.height()
-    return None
-
-
-def fit_to_desktop(widget):
-    """Make `widget` cover every monitor's desktop.
-
-    Returns (width, height, screens) where screens are the usable rect of each
-    monitor in the widget's own coordinates, or None if unknown.  On sway the
-    window is moved to the top-left of the union of the visible workspaces
-    (bars excluded); sway draws floating windows across outputs, so skin
-    windows can be dragged from one monitor to the other."""
-    rects = []
-    if os.environ.get("SWAYSOCK"):
-        try:
-            wss = json.loads(subprocess.run(["swaymsg", "-t", "get_workspaces"], capture_output=True,
-                                            text=True, timeout=2).stdout or "[]")
-            vis = [w for w in wss if w.get("visible")]
-            vis.sort(key=lambda w: 0 if w.get("focused") else 1)      # focused monitor first
-            rects = [QRect(w["rect"]["x"], w["rect"]["y"], w["rect"]["width"], w["rect"]["height"])
-                     for w in vis]
-        except (OSError, ValueError, subprocess.SubprocessError, KeyError):
-            rects = []
-    if not rects:
-        from PySide6.QtGui import QGuiApplication
-        rects = [s.availableGeometry() for s in QGuiApplication.screens()]
-    if not rects:
-        return None
-    union = rects[0]
-    for r in rects[1:]:
-        union = union.united(r)
-    if os.environ.get("SWAYSOCK"):
-        _sway_move(widget, union.x(), union.y())
-    screens = [r.translated(-union.x(), -union.y()) for r in rects]
-    return union.width(), union.height(), screens, (union.x(), union.y()), (rects[0].x(), rects[0].y())
-
-
-def _sway_move(widget, x, y):
-    try:
-        tree = json.loads(subprocess.run(["swaymsg", "-t", "get_tree"], capture_output=True,
-                                         text=True, timeout=2).stdout or "{}")
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return
-    me, title = os.getpid(), widget.windowTitle()
-    found = []
-
-    def walk(n):
-        if n.get("pid") == me and n.get("name") == title and n.get("type") == "floating_con":
-            found.append(n)
-        for ch in n.get("nodes", []) + n.get("floating_nodes", []):
-            walk(ch)
-    walk(tree)
-    if found and (found[0]["rect"]["x"], found[0]["rect"]["y"]) != (x, y):
-        subprocess.run(["swaymsg", f"[con_id={found[0]['id']}] move absolute position {x} {y}"],
-                       capture_output=True, timeout=2)
+from . import compositor
 
 
 def keep_on_screens(r: QRect, screens: list[QRect], margin=40) -> tuple[int, int]:
@@ -176,6 +87,24 @@ def docked_keys(start, rects: dict, tol=1) -> list:
     return group
 
 
+def place_newcomer(width: int, height: int, above: QRect, stack: list[QRect], screens: list[QRect]) -> QPoint:
+    """Where a window that is shown for the first time goes: docked under
+    `above` (the last window of the stack) when it fits on that monitor, else
+    docked to the right of the stack, else to its left.  With no room anywhere
+    it goes under the stack anyway (the user can drag it).  Skin pixels."""
+    below = QPoint(above.x(), above.y() + above.height())
+    screen = next((s for s in screens if s.intersects(above)), None)
+    if screen is None:
+        return below
+    block = above
+    for rect in stack:
+        block = block.united(rect)
+    for spot in (below, QPoint(block.x() + block.width(), block.y()), QPoint(block.x() - width, block.y())):
+        if screen.contains(QRect(spot.x(), spot.y(), width, height)):
+            return spot
+    return below
+
+
 def moved_together(start_pos: dict, dx: float, dy: float) -> dict:
     """Positions (key -> QPoint) of a group moved by (dx, dy) skin pixels.
 
@@ -208,18 +137,8 @@ def fit_group(bb: QRect, screens: list[QRect]) -> tuple[int, int]:
 
 
 def workspace_rects() -> list:
-    """Global rects of the visible workspace on each monitor (focused first)."""
-    rects = []
-    if os.environ.get("SWAYSOCK"):
-        try:
-            wss = json.loads(subprocess.run(["swaymsg", "-t", "get_workspaces"], capture_output=True,
-                                            text=True, timeout=2).stdout or "[]")
-            vis = [w for w in wss if w.get("visible")]
-            vis.sort(key=lambda w: 0 if w.get("focused") else 1)
-            rects = [QRect(w["rect"]["x"], w["rect"]["y"], w["rect"]["width"], w["rect"]["height"])
-                     for w in vis]
-        except (OSError, ValueError, subprocess.SubprocessError, KeyError):
-            rects = []
+    """Global rects of the usable area of each monitor (focused first)."""
+    rects = compositor.current().workspace_rects()
     if not rects:
         from PySide6.QtGui import QGuiApplication
         rects = [sc.availableGeometry() for sc in QGuiApplication.screens()]
@@ -233,8 +152,7 @@ def place_canvas(widget, chosen: list):
     union = chosen[0]
     for r in chosen[1:]:
         union = union.united(r)
-    if os.environ.get("SWAYSOCK"):
-        _sway_move(widget, union.x(), union.y())
+    compositor.current().move_window(widget.windowTitle(), union.x(), union.y())
     if (widget.width(), widget.height()) != (union.width(), union.height()):
         widget.setFixedSize(union.width(), union.height())
     return union.width(), union.height(), [r.translated(-union.x(), -union.y()) for r in chosen], \

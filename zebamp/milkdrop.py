@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (QDialog, QLineEdit, QListWidget, QListWidgetItem,
                                QMenu, QVBoxLayout, QWidget)
 
 from .player import song_title
+from .i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -60,24 +61,24 @@ def load_lib():
         with open(SRC, "rb") as fh:
             digest = hashlib.sha1(fh.read()).hexdigest()[:12]
     except OSError as e:
-        _ERR = f"falta {SRC}: {e}"
+        _ERR = tr("falta {0}: {1}").format(SRC, e)
         return None, _ERR
     so = os.path.join(CACHE, f"libzpm-{digest}.so")
     if not os.path.exists(so):
         cxx = shutil.which("g++") or shutil.which("c++") or shutil.which("clang++")
         if not cxx:
-            _ERR = "no hay compilador de C++ (g++) para preparar MilkDrop"
+            _ERR = tr("no hay compilador de C++ (g++) para preparar MilkDrop")
             return None, _ERR
         if not glob.glob("/usr/include/libprojectM/projectM.hpp") and \
                 not glob.glob("/usr/local/include/libprojectM/projectM.hpp"):
-            _ERR = "projectM no está instalado (paquete «projectm»)"
+            _ERR = tr("projectM no está instalado (paquete «projectm»)")
             return None, _ERR
         os.makedirs(CACHE, exist_ok=True)
         tmp = so + ".tmp"
         r = subprocess.run([cxx, "-O2", "-shared", "-fPIC", "-o", tmp, SRC, "-lprojectM"],
                            capture_output=True, text=True)
         if r.returncode != 0:
-            _ERR = "no se pudo compilar el puente de projectM:\n" + r.stderr[-800:]
+            _ERR = tr("no se pudo compilar el puente de projectM:\n") + r.stderr[-800:]
             return None, _ERR
         os.replace(tmp, so)
         for old in glob.glob(os.path.join(CACHE, "libzpm-*.so")):
@@ -89,7 +90,7 @@ def load_lib():
     try:
         lib = ctypes.CDLL(so)
     except OSError as e:
-        _ERR = f"no se pudo cargar projectM: {e}"
+        _ERR = tr("no se pudo cargar projectM: {0}").format(e)
         return None, _ERR
     vp, ci, cc, cf = ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p, ctypes.POINTER(ctypes.c_float)
     lib.zpm_create.restype = vp
@@ -117,7 +118,7 @@ def load_lib():
 
 def available() -> tuple[bool, str]:
     if find_datadir() is None:
-        return False, "projectM no está instalado (paquete «projectm»)"
+        return False, tr("projectM no está instalado (paquete «projectm»)")
     lib, err = load_lib()
     return lib is not None, err
 
@@ -132,8 +133,13 @@ class MilkdropWindow(QWidget):
 
     BUDGET = {"low": 400_000, "medium": 1_000_000, "high": 2_100_000, "custom": 8_300_000}
 
-    def __init__(self, app):
-        super().__init__(None, Qt.WindowType.Window)
+    def __init__(self, app, embedded_in: QWidget | None = None):
+        # embedded: a child filling the visualisation tab of a modern skin
+        self.embedded = embedded_in is not None
+        if self.embedded:
+            super().__init__(embedded_in)
+        else:
+            super().__init__(None, Qt.WindowType.Window)
         self.app = app
         self.lib, _ = load_lib()
         self.pm = None
@@ -149,7 +155,8 @@ class MilkdropWindow(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMinimumSize(160, 120)
         cfg = app.cfg
-        self.resize(int(cfg["milkdrop_w"]), int(cfg["milkdrop_h"]))
+        if not self.embedded:
+            self.resize(int(cfg["milkdrop_w"]), int(cfg["milkdrop_h"]))
         self.timer = QTimer(self)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.timeout.connect(self._tick)
@@ -196,13 +203,13 @@ class MilkdropWindow(QWidget):
         self.ctx = QOpenGLContext()
         self.ctx.setFormat(fmt)
         if not self.ctx.create():
-            self.error = "no se pudo crear un contexto OpenGL 3.3"
+            self.error = tr("no se pudo crear un contexto OpenGL 3.3")
             return False
         self.surf = QOffscreenSurface()
         self.surf.setFormat(self.ctx.format())
         self.surf.create()
         if not self.ctx.makeCurrent(self.surf):
-            self.error = "no se pudo activar el contexto OpenGL"
+            self.error = tr("no se pudo activar el contexto OpenGL")
             return False
         w, h = self._render_size()
         self._make_fbo(w, h)
@@ -222,7 +229,7 @@ class MilkdropWindow(QWidget):
                                       float(cfg["milkdrop_hardcut_sens"]), float(cfg["milkdrop_beat"]),
                                       1 if cfg["milkdrop_aspect"] else 0)
         if not self.pm:
-            self.error = self.lib.zpm_error().decode("utf-8", "replace") or "projectM no arrancó"
+            self.error = self.lib.zpm_error().decode("utf-8", "replace") or tr("projectM no arrancó")
             log.warning("projectM failed to initialise: %s", self.error)
             self.ctx.doneCurrent()
             return False
@@ -286,7 +293,7 @@ class MilkdropWindow(QWidget):
             if self.error:
                 p.setPen(Qt.GlobalColor.white)
                 p.drawText(self.rect().adjusted(12, 12, -12, -12), Qt.TextFlag.TextWordWrap,
-                           "MilkDrop no pudo arrancar:\n" + self.error)
+                           tr("MilkDrop no pudo arrancar:\n") + self.error)
             p.end()
             return
         dpr = self.devicePixelRatioF()
@@ -318,7 +325,7 @@ class MilkdropWindow(QWidget):
 
     def closeEvent(self, ev):
         self.stop()
-        if not self.isFullScreen():
+        if not self.embedded and not self.isFullScreen():
             self.app.cfg["milkdrop_w"] = self.width()
             self.app.cfg["milkdrop_h"] = self.height()
             self.app.cfg.save()
@@ -360,7 +367,7 @@ class MilkdropWindow(QWidget):
         if self.pm:
             on = not self.lib.zpm_locked(self.pm)
             self.lib.zpm_lock(self.pm, 1 if on else 0)
-            self.lib.zpm_toast(self.pm, ("Preset bloqueado" if on else "Preset desbloqueado").encode())
+            self.lib.zpm_toast(self.pm, (tr("Preset bloqueado") if on else tr("Preset desbloqueado")).encode())
 
     def toggle_shuffle(self):
         cfg = self.app.cfg
@@ -368,7 +375,8 @@ class MilkdropWindow(QWidget):
         cfg.save()
         if self.pm:
             self.lib.zpm_shuffle(self.pm, 1 if cfg["milkdrop_shuffle"] else 0)
-            self.lib.zpm_toast(self.pm, ("Orden aleatorio" if cfg["milkdrop_shuffle"] else "Orden secuencial").encode())
+            order = tr("Orden aleatorio") if cfg["milkdrop_shuffle"] else tr("Orden secuencial")
+            self.lib.zpm_toast(self.pm, order.encode())
 
     def current_name(self) -> str:
         if not self.pm:
@@ -383,6 +391,9 @@ class MilkdropWindow(QWidget):
             self.pm, os.path.splitext(self.current_name())[0].encode("utf-8", "replace")))
 
     def toggle_fullscreen(self):
+        if self.embedded:
+            self.app.toggle_milkdrop()      # the tab cannot go full screen: open the real window
+            return
         if self.isFullScreen():
             self.showNormal()
         else:
@@ -459,38 +470,38 @@ class MilkdropWindow(QWidget):
             a = m.addAction(name)
             a.setEnabled(False)
             m.addSeparator()
-        m.addAction("Siguiente preset\tEspacio", lambda: self.next_preset())
-        m.addAction("Corte brusco (aleatorio)\tH", lambda: self.next_preset(True))
-        m.addAction("Preset anterior\tRetroceso", self.prev_preset)
-        m.addAction("Elegir preset…\tL", self.choose_preset)
-        a = m.addAction("Bloquear preset\tK", self.toggle_lock)
+        m.addAction(tr("Siguiente preset\tEspacio"), lambda: self.next_preset())
+        m.addAction(tr("Corte brusco (aleatorio)\tH"), lambda: self.next_preset(True))
+        m.addAction(tr("Preset anterior\tRetroceso"), self.prev_preset)
+        m.addAction(tr("Elegir preset…\tL"), self.choose_preset)
+        a = m.addAction(tr("Bloquear preset\tK"), self.toggle_lock)
         a.setCheckable(True)
         a.setChecked(bool(self.pm and self.lib.zpm_locked(self.pm)))
-        a = m.addAction("Orden aleatorio\tR", self.toggle_shuffle)
+        a = m.addAction(tr("Orden aleatorio\tR"), self.toggle_shuffle)
         a.setCheckable(True)
         a.setChecked(bool(self.app.cfg["milkdrop_shuffle"]))
-        d = m.addMenu("Cambiar de preset cada")
+        d = m.addMenu(tr("Cambiar de preset cada"))
         for sec in (10, 15, 20, 30, 60, 120):
             a = d.addAction(f"{sec} s", lambda s=sec: self.set_duration(s))
             a.setCheckable(True)
             a.setChecked(int(self.app.cfg["milkdrop_duration"]) == sec)
-        q = m.addMenu("Calidad")
-        for key, label in (("low", "Baja (más ligera)"), ("medium", "Media"), ("high", "Alta")):
+        q = m.addMenu(tr("Calidad"))
+        for key, label in (("low", tr("Baja (más ligera)")), ("medium", tr("Media")), ("high", tr("Alta"))):
             a = q.addAction(label, lambda k=key: self._set_quality(k))
             a.setCheckable(True)
             a.setChecked(self.app.cfg["milkdrop_quality"] == key)
-        f = m.addMenu("Fotogramas por segundo")
+        f = m.addMenu(tr("Fotogramas por segundo"))
         for fps in (30, 45, 60, 75, 120):
             a = f.addAction(str(fps), lambda v=fps: self._set_fps(v))
             a.setCheckable(True)
             a.setChecked(int(self.app.cfg["milkdrop_fps"]) == fps)
-        a = m.addAction("Mostrar título al cambiar de canción", self._toggle_title)
+        a = m.addAction(tr("Mostrar título al cambiar de canción"), self._toggle_title)
         a.setCheckable(True)
         a.setChecked(bool(self.app.cfg["milkdrop_title"]))
         m.addSeparator()
-        m.addAction("Configuración de MilkDrop…\tC", self.app.show_milkdrop_config)
-        m.addAction("Pantalla completa\tEnter / doble clic", self.toggle_fullscreen)
-        m.addAction("Cerrar\tEsc", self.close)
+        m.addAction(tr("Configuración de MilkDrop…\tC"), self.app.show_milkdrop_config)
+        m.addAction(tr("Pantalla completa\tEnter / doble clic"), self.toggle_fullscreen)
+        m.addAction(tr("Cerrar\tEsc"), self.close)
         self._menu = m
         m.popup(gp)
 
@@ -512,13 +523,13 @@ class MilkdropWindow(QWidget):
 class PresetPicker(QDialog):
     def __init__(self, app, names, current):
         super().__init__(None)
-        self.setWindowTitle("Elegir preset de MilkDrop")
+        self.setWindowTitle(tr("Elegir preset de MilkDrop"))
         self.setPalette(getattr(app, "dialog_palette", self.palette()))
         self.resize(560, 520)
         self.chosen = None
         lay = QVBoxLayout(self)
         self.edit = QLineEdit()
-        self.edit.setPlaceholderText(f"Buscar entre {len(names)} presets…")
+        self.edit.setPlaceholderText(tr("Buscar entre {0} presets…").format(len(names)))
         self.edit.setClearButtonEnabled(True)
         lay.addWidget(self.edit)
         self.list = QListWidget()

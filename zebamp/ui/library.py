@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QHeaderView,
 
 from ..player import first, fmt_time, song_duration, song_title
 from .plwin import MIME_URIS
+from ..i18n import tr
 
 ROLE_KIND = Qt.ItemDataRole.UserRole
 ROLE_VAL = Qt.ItemDataRole.UserRole + 1
@@ -40,7 +41,8 @@ def _vals(result, key):
 
 
 class TrackTable(QTreeWidget):
-    COLS = ["Artista", "Título", "Álbum", "Duración", "Pista", "Año", "Género", "Valoración", "Escuchas"]
+    COLS = [tr("Artista"), tr("Título"), tr("Álbum"), tr("Duración"), tr("Pista"), tr("Año"), tr("Género"),
+            tr("Valoración"), tr("Escuchas")]
 
     def __init__(self, lib):
         super().__init__()
@@ -109,14 +111,14 @@ class TrackTable(QTreeWidget):
 
     def _menu(self, pos):
         m = QMenu(self)
-        m.addAction("Reproducir", self.lib.play_selected)
-        m.addAction("Encolar", self.lib.enqueue_selected)
-        m.addAction("Encolar a continuación", self.lib.enqueue_next)
+        m.addAction(tr("Reproducir"), self.lib.play_selected)
+        m.addAction(tr("Encolar"), self.lib.enqueue_selected)
+        m.addAction(tr("Encolar a continuación"), self.lib.enqueue_next)
         stats = getattr(self.lib.app, "stats", None)
         if stats is not None:
-            r = m.addMenu("Valorar")
+            r = m.addMenu(tr("Valorar"))
             for n in range(5, -1, -1):
-                r.addAction("★" * n if n else "Sin valoración",
+                r.addAction("★" * n if n else tr("Sin valoración"),
                             lambda n=n: self._rate(n))
         m.exec(self.viewport().mapToGlobal(pos))
 
@@ -135,7 +137,7 @@ class LibraryWindow(QWidget):
         else:
             super().__init__(None, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.app = app
-        self.setWindowTitle("Biblioteca de medios - Zebamp")
+        self.setWindowTitle(tr("Biblioteca de medios - Zebamp"))
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.setMinimumSize(275 * 2, 116 * 3)
         self.resize(820, 520)
@@ -147,7 +149,7 @@ class LibraryWindow(QWidget):
         lay.setSpacing(3)
         top = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Buscar en la biblioteca (artista, título, álbum…)")
+        self.search.setPlaceholderText(tr("Buscar en la biblioteca (artista, título, álbum…)"))
         self.search.setClearButtonEnabled(True)
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -155,8 +157,8 @@ class LibraryWindow(QWidget):
         self._search_timer.timeout.connect(self._do_search)
         self.search.textChanged.connect(lambda *_: self._search_timer.start())
         top.addWidget(self.search, 1)
-        for text, fn in (("Reproducir", self.play_selected), ("Encolar", self.enqueue_selected),
-                         ("Actualizar BD", lambda: app.player.update_database())):
+        for text, fn in ((tr("Reproducir"), self.play_selected), (tr("Encolar"), self.enqueue_selected),
+                         (tr("Actualizar BD"), lambda: app.player.update_database())):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, fn=fn: fn())
             top.addWidget(b)
@@ -176,18 +178,18 @@ class LibraryWindow(QWidget):
         self.split.setSizes([220, 600])
         lay.addWidget(self.split, 1)
         self._roots = {}
-        for key, label in (("artists", "Artistas"), ("albumartists", "Artistas del álbum"),
-                           ("albums", "Álbumes"), ("genres", "Géneros"), ("dirs", "Carpetas"),
-                           ("playlists", "Listas guardadas")):
+        for key, label in (("artists", tr("Artistas")), ("albumartists", tr("Artistas del álbum")),
+                           ("albums", tr("Álbumes")), ("genres", tr("Géneros")), ("dirs", tr("Carpetas")),
+                           ("playlists", tr("Listas guardadas")), ("smartlists", tr("Listas inteligentes"))):
             it = QTreeWidgetItem([label])
             it.setData(0, ROLE_KIND, "root:" + key)
             it.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
             self.tree.addTopLevelItem(it)
             self._roots[key] = it
         # smart views (play statistics / ratings kept in MPD stickers)
-        for key, label in (("smart:most", "★ Más escuchadas"), ("smart:rated", "★ Mejor valoradas"),
-                           ("smart:recentplay", "★ Escuchadas recientemente"),
-                           ("smart:added", "★ Añadidas recientemente")):
+        for key, label in (("smart:most", tr("★ Más escuchadas")), ("smart:rated", tr("★ Mejor valoradas")),
+                           ("smart:recentplay", tr("★ Escuchadas recientemente")),
+                           ("smart:added", tr("★ Añadidas recientemente"))):
             it = QTreeWidgetItem([label])
             it.setData(0, ROLE_KIND, key)
             self.tree.addTopLevelItem(it)
@@ -282,7 +284,7 @@ class LibraryWindow(QWidget):
         f.setBold(True)
         p.setFont(f)
         p.setPen((sk.genex_colors or {}).get("window_text", QColor(200, 200, 200)))
-        p.drawText(QRect(tx, 0, title_w, 20), Qt.AlignmentFlag.AlignCenter, "BIBLIOTECA DE MEDIOS")
+        p.drawText(QRect(tx, 0, title_w, 20), Qt.AlignmentFlag.AlignCenter, tr("BIBLIOTECA DE MEDIOS"))
         if self._close_pressed:
             p.drawPixmap(w - 11, 3, sk.sprite("GEN", "CLOSE_D"))
         # sides
@@ -390,7 +392,7 @@ class LibraryWindow(QWidget):
             item.takeChildren()
             kids = []
             for i, n in enumerate(names):
-                label = str(n) if n not in ("", None) else "(desconocido)"
+                label = str(n) if n not in ("", None) else tr("(desconocido)")
                 c = QTreeWidgetItem([label])
                 c.setData(0, ROLE_KIND, child_kind)
                 c.setData(0, ROLE_VAL, values[i] if values is not None else n)
@@ -411,6 +413,11 @@ class LibraryWindow(QWidget):
         elif kind == "root:genres":
             self._async(lambda c: _vals(c.list("genre"), "genre"),
                         lambda r: add_children(r or [], "genre"))
+        elif kind == "root:smartlists":
+            add_children([s["name"] for s in self.app.smart_lists()], "smartlist", expandable=False)
+            create = QTreeWidgetItem([tr("＋ Nueva lista inteligente…")])     # double click opens the editor
+            create.setData(0, ROLE_KIND, "smartnew")
+            item.addChild(create)
         elif kind == "root:playlists":
             self._async(lambda c: sorted((p.get("playlist") for p in c.listplaylists()), key=str.lower),
                         lambda r: add_children(r or [], "playlist", expandable=False))
@@ -456,8 +463,54 @@ class LibraryWindow(QWidget):
                         lambda r: self.table.set_songs(r or []))
         elif kind == "playlist":
             self._async(lambda c: c.listplaylistinfo(val), lambda r: self.table.set_songs(r or []))
+        elif kind == "smartlist":
+            self._show_smart_list(val)
         elif kind.startswith("smart:"):
             self._smart(kind)
+
+    # ------------------------------------------------------ smart lists
+    @staticmethod
+    def _song_from_row(r) -> dict:
+        return {"file": r[0], "title": r[1], "artist": r[2], "album": r[3], "albumartist": r[4],
+                "genre": r[5], "duration": r[6], "date": r[7] if len(r) > 7 else ""}
+
+    def _smart_rows(self, name: str, done):
+        """Evaluate a smart list off the GUI thread; done(index rows)."""
+        from ..smartlist import evaluate
+        from ..threads import run_bg
+        smart = next((x for x in self.app.smart_lists() if x["name"] == name), None)
+        index, stats = self.app.library_index, self.app.stats
+        if smart is None or not index.is_ready:
+            if not index.is_ready:
+                index.refresh()             # still loading: the list fills in on the next click
+            done([])
+            return
+        # snapshots: the worker must not see the dicts change under it
+        rows, ratings, counts, last = index.rows, dict(stats.ratings), dict(stats.counts), dict(stats.last)
+        run_bg(lambda: evaluate(smart, rows, ratings, counts, last),
+               lambda r: self._safe(done, [] if isinstance(r, Exception) else r))
+
+    def _show_smart_list(self, name: str):
+        self._smart_rows(name, lambda rows: self.table.set_songs(
+            [self._song_from_row(r) for r in rows], keep_order=True))
+
+    def new_smart_list(self):
+        self.edit_smart_list(None)
+
+    def edit_smart_list(self, name: str | None):
+        from ..smartlist import with_smart_list
+        from .smartlist_dialog import SmartListDialog
+        current = next((x for x in self.app.smart_lists() if x["name"] == name), None)
+        dialog = SmartListDialog(self.app, current)
+        if dialog.exec() and dialog.result_list:
+            self.app.save_smart_lists(with_smart_list(self.app.smart_lists(), dialog.result_list, name or ""))
+            self._reload_root("smartlists")
+            self._roots["smartlists"].setExpanded(True)
+
+    def delete_smart_list(self, name: str):
+        from ..smartlist import without_smart_list
+        self.app.save_smart_lists(without_smart_list(self.app.smart_lists(), name))
+        self._reload_root("smartlists")
 
     def _songs_for(self, uris):
         """Song dicts for URIs, from the in-memory index when it's ready."""
@@ -468,8 +521,7 @@ class LibraryWindow(QWidget):
             for u in uris:
                 r = by.get(u)
                 if r is not None:
-                    out.append({"file": r[0], "title": r[1], "artist": r[2], "album": r[3],
-                                "albumartist": r[4], "genre": r[5], "duration": r[6]})
+                    out.append(self._song_from_row(r))
             return out
         return None
 
@@ -530,22 +582,39 @@ class LibraryWindow(QWidget):
             cb([val])
         elif kind == "playlist":
             self._async(lambda c: [s["file"] for s in c.listplaylistinfo(val) if "file" in s], cb)
+        elif kind == "smartlist":
+            self._smart_rows(val, lambda rows: cb([r[0] for r in rows]))
 
     def _tree_play(self, item):
+        if item.data(0, ROLE_KIND) == "smartnew":
+            self.new_smart_list()
+            return
         self._uris_for_tree(item, lambda uris: uris and self.app.player.add(uris, replace=True))
 
     def _tree_menu(self, pos):
         item = self.tree.itemAt(pos)
-        if item is None or (item.data(0, ROLE_KIND) or "").startswith("root:"):
+        kind = (item.data(0, ROLE_KIND) or "") if item is not None else ""
+        if kind == "root:smartlists":
+            m = QMenu(self)
+            m.addAction(tr("Nueva lista inteligente…"), self.new_smart_list)
+            m.exec(self.tree.viewport().mapToGlobal(pos))
+            return
+        if item is None or kind.startswith("root:") or kind == "smartnew":
             return
         m = QMenu(self)
-        m.addAction("Reproducir", lambda: self._tree_play(item))
-        m.addAction("Encolar", lambda: self._uris_for_tree(item, lambda u: u and self.app.player.add(u)))
+        m.addAction(tr("Reproducir"), lambda: self._tree_play(item))
+        m.addAction(tr("Encolar"), lambda: self._uris_for_tree(item, lambda u: u and self.app.player.add(u)))
         if item.data(0, ROLE_KIND) == "playlist":
-            m.addAction("Cargar (reemplazar lista)",
+            m.addAction(tr("Cargar (reemplazar lista)"),
                         lambda: self.app.player.load_playlist(item.data(0, ROLE_VAL)))
+        if kind == "smartlist":
+            name = item.data(0, ROLE_VAL)
+            m.addSeparator()
+            m.addAction(tr("Editar…"), lambda: self.edit_smart_list(name))
+            m.addAction(tr("Nueva lista inteligente…"), self.new_smart_list)
+            m.addAction(tr("Borrar"), lambda: self.delete_smart_list(name))
         if item.data(0, ROLE_KIND) == "dir":
-            m.addAction("Actualizar esta carpeta en la BD",
+            m.addAction(tr("Actualizar esta carpeta en la BD"),
                         lambda: self.app.player.update_database(item.data(0, ROLE_VAL)))
         m.exec(self.tree.viewport().mapToGlobal(pos))
 

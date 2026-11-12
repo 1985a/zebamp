@@ -35,7 +35,7 @@ version = {attr = "zebamp.__version__"}
 include = ["zebamp*"]
 
 [tool.setuptools.package-data]
-zebamp = ["data/*.json", "data/*.png", "data/maki/*", "native/*.cpp"]
+zebamp = ["data/*.json", "data/*.png", "data/maki/*", "data/i18n/*.json", "native/*.cpp"]
 
 [tool.ruff]
 line-length = 120

@@ -265,7 +265,8 @@ class HelpTest(unittest.TestCase):
         import zebamp.ui.lyrics as ly
         import zebamp.ui.milkdrop_config as mc
         import zebamp.ui.radio as ra
-        mods = (md, dl, lib, ly, mc, ra)
+        import zebamp.ui.smartlist_dialog as sm
+        mods = (md, dl, lib, ly, mc, ra, sm)
         for cls in H.CONTEXT:
             self.assertTrue(any(hasattr(m, cls) for m in mods), cls)
 
@@ -305,6 +306,41 @@ class DockedGroupTest(unittest.TestCase):
         self.assertEqual(sorted(docked_keys("main", rects)), ["ly", "main", "pl"])
         rects["ly"] = QRect(980, 356, 275, 174)            # a real gap: loose
         self.assertEqual(sorted(docked_keys("main", rects)), ["main", "pl"])
+
+
+class PlaceNewcomerTest(unittest.TestCase):
+    """A window shown for the first time must appear docked and on screen."""
+
+    def setUp(self):
+        from PySide6.QtCore import QRect
+        self.screen = QRect(0, 0, 1280, 682)             # a 2560x1364 monitor at 2x
+        self.main = QRect(480, 17, 275, 116)
+        self.playlist = QRect(480, 133, 275, 203)
+        self.lyrics = QRect(480, 336, 275, 174)
+        self.stack = [self.main, self.playlist, self.lyrics]
+
+    def spot(self, above, stack=None, size=(275, 290), screens=None):
+        from zebamp.canvas import place_newcomer
+        q = place_newcomer(*size, above, stack or self.stack, [self.screen] if screens is None else screens)
+        return q.x(), q.y()
+
+    def test_under_the_stack_when_there_is_room(self):
+        self.assertEqual(self.spot(self.playlist, [self.main, self.playlist]), (480, 336))
+
+    def test_beside_the_stack_when_it_would_fall_off_the_bottom(self):
+        self.assertEqual(self.spot(self.lyrics), (755, 17))          # right of the stack, top aligned
+
+    def test_on_the_left_when_the_stack_is_at_the_right_edge(self):
+        from PySide6.QtCore import QRect
+        stack = [QRect(r.x() + 520, r.y(), r.width(), r.height()) for r in self.stack]
+        self.assertEqual(self.spot(stack[-1], stack), (725, 17))
+
+    def test_under_anyway_when_nothing_fits(self):
+        from PySide6.QtCore import QRect
+        tiny = QRect(0, 0, 400, 500)
+        stack = [QRect(60, 0, 275, 116), QRect(60, 116, 275, 380)]
+        self.assertEqual(self.spot(stack[-1], stack, screens=[tiny]), (60, 496))
+        self.assertEqual(self.spot(stack[-1], stack, screens=[]), (60, 496))     # monitors unknown yet
 
 
 class FollowBottomEdgesTest(unittest.TestCase):

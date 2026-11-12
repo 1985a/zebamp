@@ -16,6 +16,7 @@ from . import gui as G
 from .maki import VM, MakiError, Program, class_name
 from .skin import ModernSkin
 from .xmlparse import Node
+from ..i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -76,9 +77,9 @@ def builtin_frame(kind: str, inst: Node) -> Node:
            image="wasabi.frame.bottom.right", resize="bottomright"),
         _n("wasabi:titlebar", id="wasabi.titlebar", x=22, y=2, w=-42, relatw=1, h=11),
         _n("button", id="controlmenu", action="controlmenu", x=5, y=3, image="wasabi.button.sysmenu",
-           downimage="wasabi.button.sysmenu.pressed", tooltip="Menú"),
+           downimage="wasabi.button.sysmenu.pressed", tooltip=tr("Menú")),
         _n("button", id="Close", action="CLOSE", x=-18, relatx=1, y=3, image="wasabi.button.close",
-           downimage="wasabi.button.close.pressed", tooltip="Cerrar"),
+           downimage="wasabi.button.close.pressed", tooltip=tr("Cerrar")),
     ]
     content = inst.get("content")
     if content:
@@ -259,35 +260,6 @@ class ModernDock(QWidget):
         s = self.engine.scale
         scr = getattr(self, "screens", None) or [QRect(0, 0, self.width(), self.height())]
         return [QRect(int(r.x() / s), int(r.y() / s), int(r.width() / s), int(r.height() / s)) for r in scr]
-
-    def _sway_fit(self):
-        import json
-        import subprocess
-        try:
-            tree = json.loads(subprocess.run(["swaymsg", "-t", "get_tree"], capture_output=True,
-                                             text=True, timeout=2).stdout or "{}")
-        except (OSError, ValueError, subprocess.SubprocessError):
-            return None
-        me, title = os.getpid(), self.windowTitle()
-        found = []
-
-        def walk(n, ws):
-            if n.get("type") == "workspace":
-                ws = n
-            if n.get("pid") == me and n.get("name") == title and n.get("type") == "floating_con":
-                found.append((n, ws))
-            for ch in n.get("nodes", []) + n.get("floating_nodes", []):
-                walk(ch, ws)
-        walk(tree, None)
-        if not found or found[0][1] is None:
-            return None
-        node, ws = found[0]
-        r = ws["rect"]
-        w, h = int(r["width"]), int(r["height"])
-        if (node["rect"]["x"], node["rect"]["y"]) != (r["x"], r["y"]):
-            subprocess.run(["swaymsg", f"[con_id={node['id']}] move absolute position {r['x']} {r['y']}"],
-                           capture_output=True, timeout=2)
-        return w, h
 
     def _relayout_free(self):
         s = self.engine.scale
@@ -736,8 +708,7 @@ class ModernWindow(QWidget):
         for h in hosts:
             on = h.layout_obj() is lay and h.shown() and h.rect.width() > 20 and h.rect.height() > 20
             if on and h.widget is None:
-                from ..ui.library import LibraryWindow
-                h.widget = LibraryWindow(self.engine.app, embedded_in=self)
+                h.widget = self._make_hosted(h.kind)
             if h.widget is None:
                 continue
             if on:
@@ -750,6 +721,18 @@ class ModernWindow(QWidget):
                     h.widget.raise_()
             elif h.widget.isVisible():
                 h.widget.hide()
+
+    def _make_hosted(self, kind: str) -> QWidget:
+        """The Qt widget embedded in a slot of the skin."""
+        if kind == "milkdrop":
+            from ..milkdrop import MilkdropWindow
+            return MilkdropWindow(self.engine.app, embedded_in=self)
+        from ..ui.library import LibraryWindow
+        return LibraryWindow(self.engine.app, embedded_in=self)
+
+    def hosted_widgets(self) -> list:
+        return [h.widget for c_lay in self.container.layouts
+                for h in getattr(c_lay, "_hosts", None) or [] if h.widget is not None]
 
     # ------------------------------------------------- docked pass-through
     def opaque_at(self, pt: QPoint) -> bool:
@@ -1890,6 +1873,8 @@ class ModernEngine:
                 return G.PlaylistView(node, parent, self)
             if hold == ML_GUID:
                 return G.WidgetHost(node, parent, self, "library")
+            if hold == AVS_GUID and self.milkdrop_in_slot():
+                return G.WidgetHost(node, parent, self, "milkdrop")
             if hold == AVS_GUID:
                 # Winamp's AVS/visualisation slot: our spectrum analyser
                 vn = Node("vis", dict(node.attrs))
@@ -1927,7 +1912,8 @@ class ModernEngine:
         comp = _norm_guid(c.node.get("component") or "")
         if comp not in (PL_GUID, ML_GUID):
             return False
-        if any(isinstance(o, (G.PlaylistView, G.WidgetHost)) for o in lay.walk()):
+        if any(isinstance(o, G.PlaylistView) or (isinstance(o, G.WidgetHost) and o.kind == "library")
+               for o in lay.walk()):
             return False
         if lay.rect.height() < 60:
             return False  # windowshade layouts have no room for a list
@@ -2064,6 +2050,9 @@ class ModernEngine:
             t.stop()
         for c in self.containers:
             if c.window is not None:
+                for widget in c.window.hosted_widgets():
+                    if hasattr(widget, "shutdown"):
+                        widget.shutdown()       # MilkDrop: free projectM and its GL context
                 c.window.hide()
                 c.window.deleteLater()
                 c.window = None
@@ -2147,6 +2136,16 @@ class ModernEngine:
             if x.id.lower() == k:
                 c = x
         return c.node.get("component", "") if c is not None else ""
+
+    def milkdrop_in_slot(self) -> bool:
+        """The user asked for MilkDrop in the skin's visualisation tab and
+        projectM is usable (otherwise the tab keeps the spectrum analyser)."""
+        if self.app.cfg["modern_vis_slot"] != "milkdrop":
+            return False
+        if not hasattr(self, "_milkdrop_ok"):
+            from .. import milkdrop
+            self._milkdrop_ok = milkdrop.available()[0]
+        return self._milkdrop_ok
 
     def main_container(self):
         return self.container("main") or (self.containers[0] if self.containers else None)
@@ -2511,7 +2510,7 @@ class ModernEngine:
             return " ".join(parts)
         if disp == "songticker":
             if not s:
-                return "Zebamp" if pl.connected else "MPD no conectado"
+                return "Zebamp" if pl.connected else tr("MPD no conectado")
             pos = pl.current_pos
             t = f"{pos + 1}. {song_title(s)}" if pos >= 0 else song_title(s)
             if text_obj is not None and _truthy(text_obj.p("showlen")) and pl.duration > 0:
@@ -2701,7 +2700,7 @@ class ModernEngine:
             if c.window is not None:
                 c.window.update()
 
-    VIS_STYLES = ("Barras", "Barras finas", "Fuego", "Osciloscopio")
+    VIS_STYLES = (tr("Barras"), tr("Barras finas"), tr("Fuego"), tr("Osciloscopio"))
 
     def _vis_random_on(self) -> bool:
         if self.app.cfg["vis_next_random"]:
@@ -2795,16 +2794,16 @@ class ModernEngine:
         key = menu_id.split(":")[-1].strip().lower()
         if key == "file":
             m = app._menu()
-            app._act(m, "Reproducir archivo…", app.open_files, "L")
-            app._act(m, "Reproducir carpeta…", app.open_dir, "Shift+L")
-            app._act(m, "Reproducir URL…", app.add_url_play, "Ctrl+L")
+            app._act(m, tr("Reproducir archivo…"), app.open_files, "L")
+            app._act(m, tr("Reproducir carpeta…"), app.open_dir, "Shift+L")
+            app._act(m, tr("Reproducir URL…"), app.add_url_play, "Ctrl+L")
             m.addSeparator()
-            app._act(m, "Cargar lista…", app.load_playlist)
-            app._act(m, "Guardar lista…", app.save_playlist)
+            app._act(m, tr("Cargar lista…"), app.load_playlist)
+            app._act(m, tr("Guardar lista…"), app.save_playlist)
             m.addSeparator()
-            app._act(m, "Información del archivo…", app.show_file_info, "Alt+3")
+            app._act(m, tr("Información del archivo…"), app.show_file_info, "Alt+3")
             m.addSeparator()
-            app._act(m, "Salir", app.quit, "Ctrl+Q")
+            app._act(m, tr("Salir"), app.quit, "Ctrl+Q")
         elif key == "play":
             m = app.build_playback_menu(None)
         elif key == "options":
@@ -2814,24 +2813,24 @@ class ModernEngine:
             m.addMenu(vm)
         elif key == "view":
             m = app._menu()
-            app._act(m, "Lista de reproducción", app.toggle_playlist_window, "Alt+E")
-            app._act(m, "Ecualizador", app.toggle_eq_window, "Alt+G")
-            app._act(m, "Biblioteca de medios", app.show_library, "Alt+L")
-            app._act(m, "Explorador de skins", app.show_skin_browser, "Alt+S")
+            app._act(m, tr("Lista de reproducción"), app.toggle_playlist_window, "Alt+E")
+            app._act(m, tr("Ecualizador"), app.toggle_eq_window, "Alt+G")
+            app._act(m, tr("Biblioteca de medios"), app.show_library, "Alt+L")
+            app._act(m, tr("Explorador de skins"), app.show_skin_browser, "Alt+S")
             m.addMenu(app.build_mpd_menu(m))
         elif key == "playlist":
             m = app._menu()
-            app._act(m, "Añadir archivos…", app.add_files, "Insert")
-            app._act(m, "Añadir carpeta…", app.add_dir)
-            app._act(m, "Añadir URL…", app.add_url)
+            app._act(m, tr("Añadir archivos…"), app.add_files, "Insert")
+            app._act(m, tr("Añadir carpeta…"), app.add_dir)
+            app._act(m, tr("Añadir URL…"), app.add_url)
             m.addSeparator()
-            app._act(m, "Vaciar lista", app.clear_playlist)
-            app._act(m, "Quitar duplicados", app.remove_duplicates)
-            app._act(m, "Quitar entradas que no existen", app.remove_dead)
+            app._act(m, tr("Vaciar lista"), app.clear_playlist)
+            app._act(m, tr("Quitar duplicados"), app.remove_duplicates)
+            app._act(m, tr("Quitar entradas que no existen"), app.remove_dead)
             m.addSeparator()
-            app._act(m, "Cargar lista…", app.load_playlist)
-            app._act(m, "Guardar lista…", app.save_playlist)
-            app._act(m, "Saltar a archivo…", app.show_jump_to_file, "J")
+            app._act(m, tr("Cargar lista…"), app.load_playlist)
+            app._act(m, tr("Guardar lista…"), app.save_playlist)
+            app._act(m, tr("Saltar a archivo…"), app.show_jump_to_file, "J")
         elif key == "sort":
             m = app.build_sort_menu(None)
         elif key == "help":

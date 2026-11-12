@@ -5,6 +5,7 @@ from PySide6.QtCore import QPoint, QRect
 from PySide6.QtGui import QPainter
 
 from .base import Area, Button, SkinPanel, Slider, Toggle
+from ..i18n import tr
 
 W, H = 275, 116
 BAND_X = [78, 96, 114, 132, 150, 168, 186, 204, 222, 240]
@@ -103,12 +104,12 @@ class EqPanel(SkinPanel):
                         lambda: tuple(self.skin.sprite("EQMAIN", n) for n in
                                       ("EQ_ON", "EQ_ON_D", "EQ_ON_SEL", "EQ_ON_SEL_D")),
                         selected=lambda: eq.enabled, on_click=eq.toggle,
-                        tooltip="Activar ecualizador"))
+                        tooltip=tr("Activar ecualizador")))
         self.add(Toggle((40, 18, 32, 12),
                         lambda: tuple(self.skin.sprite("EQMAIN", n) for n in
                                       ("EQ_AUTO", "EQ_AUTO_D", "EQ_AUTO_SEL", "EQ_AUTO_SEL_D")),
                         selected=lambda: a.cfg["eq_auto"], on_click=a.toggle_eq_auto,
-                        tooltip="Cargar preajuste automáticamente por canción"))
+                        tooltip=tr("Cargar preajuste automáticamente por canción")))
         self.add(Button((217, 18, 44, 12), lambda: (self.skin.sprite("EQMAIN", "EQ_PRESETS"),
                                                     self.skin.sprite("EQMAIN", "EQ_PRESETS_D")),
                         on_click=lambda: a.show_eq_presets_menu(self._global(QPoint(217, 30)))))

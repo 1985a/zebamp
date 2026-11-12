@@ -10,16 +10,18 @@ from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QPushButton, QSplitter,
                                QTextBrowser, QVBoxLayout, QWidget)
 
-from .. import __version__
+from .. import __version__, i18n
+from ..i18n import tr
 
 
-def _keys(rows):
+def _keys(rows, either="o"):
+    """Table of shortcuts; `either` is the word between alternative keys."""
     out = ["<table class='k'>"]
     for k, v in rows:
         if k.startswith(("zebamp", "--")):
             keys = " ".join(f"<code>{html.escape(x)}</code>" for x in k.split(" "))
         else:
-            keys = " <span class='o'>o</span> ".join(f"<kbd>{html.escape(x)}</kbd>" for x in k.split(" "))
+            keys = f" <span class='o'>{either}</span> ".join(f"<kbd>{html.escape(x)}</kbd>" for x in k.split(" "))
         out.append(f"<tr><td class='kc'>{keys}</td><td>{v}</td></tr>")
     out.append("</table>")
     return "".join(out)
@@ -164,6 +166,7 @@ hacer que el balance se aplique al audio de MPD.</p>
 <b>Listas guardadas</b>.</li>
 <li>Vistas inteligentes: <b>Más escuchadas, Mejor valoradas, Escuchadas recientemente</b> y
 <b>Añadidas recientemente</b> (ver <a href="#valoraciones">valoraciones</a>).</li>
+<li><b>Listas inteligentes</b>: tus propias listas por reglas (ver más abajo).</li>
 <li>La casilla de búsqueda filtra por artista, título, álbum…</li>
 <li>Doble clic reproduce; clic derecho para añadir, poner a continuación, reemplazar la
 lista o editar etiquetas. También puedes arrastrar canciones a la lista.</li>
@@ -171,6 +174,21 @@ lista o editar etiquetas. También puedes arrastrar canciones a la lista.</li>
 </ul>
 <p>Los skins modernos Bento y Big Bento llevan la biblioteca integrada en su propia
 ventana.</p>
+<h3>Listas inteligentes</h3>
+<p>Una lista inteligente no se llena a mano: eliges unas reglas y Zebamp reúne las canciones
+que las cumplen, siempre al día. Por ejemplo: <i>género contiene «rock», valoración al menos
+4 y días sin escucharla al menos 30</i>.</p>
+<ul>
+<li>Abre <b>Listas inteligentes</b> en el árbol y haz doble clic en <b>＋ Nueva lista
+inteligente…</b> (o clic derecho).</li>
+<li>Reglas sobre: título, artista, álbum, artista del álbum, género, carpeta o archivo,
+valoración, veces escuchada, año, duración y días sin escucharla. Una canción que nunca has
+escuchado cuenta como «muchos días sin escucharla».</li>
+<li>Elige si deben cumplirse <b>todas</b> las reglas o <b>alguna</b>, el orden (por artista,
+al azar, más escuchadas, mejor valoradas…) y un máximo de canciones.</li>
+<li>Clic derecho sobre una lista para <b>editarla</b> o <b>borrarla</b>; doble clic la
+reproduce.</li>
+</ul>
 """),
 
     ("buscar", "Búsqueda instantánea", """
@@ -257,6 +275,9 @@ funcionan a la vez. Se configura en <b>Preferencias › Visualización</b>.</p>
 <h2>MilkDrop</h2>
 <p><kbd>Ctrl+Shift+K</kbd> (o <kbd>Ctrl+K</kbd>, o Menú › Visualización › MilkDrop) abre los
 efectos psicodélicos de MilkDrop (motor projectM) en su propia ventana.</p>
+<p>Con un skin moderno que tenga pestaña de visualización (Bento, Big Bento), <b>Menú ›
+Visualización › Pestaña de visualización del skin</b> elige qué se ve en ella: el analizador
+de espectro o MilkDrop. Doble clic sobre MilkDrop en la pestaña lo abre en su ventana.</p>
 """ + _keys([
         ("Espacio N", "siguiente preset, con transición suave"),
         ("H", "corte brusco a otro preset"),
@@ -351,7 +372,22 @@ minutos) y cuándo fue la última vez.</li>
 <p>Todo se guarda en la base de <i>stickers</i> de MPD, así que lo conservas aunque
 reinstales Zebamp, y otros clientes pueden leerlo. Si tu MPD no tiene stickers, se guarda en
 un archivo local. Las vistas «Más escuchadas», «Mejor valoradas», etc. están en la
-<a href="#biblioteca">biblioteca</a>.</p>
+<a href="#biblioteca">biblioteca</a>, y puedes usarlas en tus
+<a href="#biblioteca">listas inteligentes</a>.</p>
+<h3>Scrobbling (ListenBrainz y Last.fm)</h3>
+<p>Zebamp puede enviar lo que escuchas a tu perfil de <b>ListenBrainz</b> o de
+<b>Last.fm</b>. Está apagado hasta que lo actives en <b>Preferencias › Scrobbling</b>.</p>
+<ul>
+<li><b>ListenBrainz</b>: copia tu token de usuario (listenbrainz.org/settings), pégalo y
+pulsa <b>Comprobar</b>. También vale un servidor compatible propio.</li>
+<li><b>Last.fm</b>: crea una clave de API gratuita (last.fm/api/account/create), escribe la
+clave y el secreto y pulsa <b>Conectar…</b>; se abre el navegador para que autorices a
+Zebamp, y al volver pulsas <b>Ya lo autoricé</b>.</li>
+<li>Una canción se envía cuando suena más de la mitad (o 4 minutos). No se envían la radio
+ni los archivos sin etiquetas de artista y título, ni las pistas de menos de 30 s.</li>
+<li>Sin Internet no se pierde nada: se guardan y se envían cuando vuelve la conexión.</li>
+</ul>
+<p>El token y las claves se guardan en tu archivo de configuración, sin cifrar.</p>
 """),
 
     ("marcadores", "Marcadores", """
@@ -369,6 +405,9 @@ actual).</li>
 <li><b>Consumir</b>: quita cada canción de la lista al terminar de sonar.</li>
 <li><b>Parar tras la pista actual</b>.</li>
 <li><b>Fundido entre pistas</b> (crossfade) de 2 a 10 s.</li>
+<li><b>Temporizador de apagado</b> (Menú › Opciones): pausa la música dentro de 15, 30, 45,
+60, 90 o 120 minutos, o de los que tú digas, o <b>al terminar el álbum</b> (deja acabar su
+última canción). El mismo menú muestra cuánto queda y permite cancelarlo.</li>
 <li><kbd>←</kbd>/<kbd>→</kbd> retroceden o avanzan 5 s; <kbd>Ctrl+J</kbd> salta a un tiempo
 exacto.</li>
 <li><kbd>↑</kbd>/<kbd>↓</kbd> suben o bajan el volumen.</li>
@@ -376,6 +415,12 @@ exacto.</li>
 <p>En <b>Preferencias › Audio (MPD)</b>: fundido, MixRamp y ReplayGain (igualar el volumen
 entre canciones). Estas opciones se guardan en MPD y afectan a todos sus clientes.
 <b>Menú › MPD › Salidas</b> activa o desactiva las salidas de audio de MPD.</p>
+<h3>Varios servidores MPD</h3>
+<p>Si tienes más de un MPD (el de este equipo, un servidor en casa…), guarda cada conexión
+como un perfil: conéctate en <b>Preferencias › MPD</b> y elige <b>Menú › MPD › Servidor ›
+Guardar la conexión actual como perfil…</b>. Después cambias de uno a otro desde ese mismo
+menú; <b>Automático</b> vuelve al MPD de este equipo. Las valoraciones y el índice de
+búsqueda son de cada servidor.</p>
 """),
 
     ("escritorio", "Integración con el escritorio", """
@@ -392,7 +437,18 @@ cambio de canción).</li>
 <li><b>Siempre visible</b>: Menú › Opciones o la <b>A</b> de la barra lateral.</li>
 <li><b>Asociaciones</b>: los skins <code>.wsz</code>/<code>.wal</code> se abren con Zebamp.</li>
 <li><b>Búsqueda global</b>: <kbd>Super+Shift+S</kbd> (atajo de sway).</li>
+<li><b>Arrastrar y soltar</b>: suelta archivos o carpetas sobre la ventana principal para
+reproducirlos, o sobre la lista para añadirlos en ese punto. Un skin soltado se instala.</li>
+<li><b>Carátula</b>: <kbd>Ctrl+Shift+A</kbd> abre la carátula del álbum en una ventana del
+skin clásico, que se pega y se redimensiona como las demás.</li>
 </ul>
+<h3>Compositores</h3>
+<p>Las ventanas sueltas con imán necesitan que el compositor diga dónde están los monitores
+y deje colocar la ventana de Zebamp. Está hecho y probado en <b>sway</b>. En <b>Hyprland</b>
+se usa <code>hyprctl</code> (experimental: aún no se ha probado en un equipo real). En
+los demás (KDE, GNOME…) Zebamp funciona con lo que le dice Qt, y la colocación puede variar;
+con los skins modernos, <b>Opciones › Tamaño › Todas pegadas en un bloque</b> no depende del
+compositor.</p>
 <p>Cerrar Zebamp no detiene la música ni produce cortes: MPD sigue reproduciendo y el
 ecualizador sigue activo.</p>
 """),
@@ -412,6 +468,7 @@ del gestor de ventanas):</p>
         ("--ayuda", "abrir esta ayuda"),
         ("--host --port", "usar otro servidor MPD"),
         ("--skin archivo", "cargar un skin"),
+        ("--lang en", "usar otro idioma (es, en) solo esta vez"),
         ("--debug", "mostrar mensajes de diagnóstico"),
     ]) + """
 <p>Ejemplo de atajo en sway: <code>bindsym $mod+Shift+s exec zebamp --buscar</code></p>
@@ -428,7 +485,11 @@ de la lista.</li>
 <li><b>Visualización</b>: fifo de MPD y su formato.</li>
 <li><b>Ecualizador</b>: motor del ecualizador y balance en PipeWire.</li>
 <li><b>Audio (MPD)</b>: fundido, MixRamp y ReplayGain.</li>
+<li><b>Scrobbling</b>: cuentas de ListenBrainz y Last.fm
+(<a href="#valoraciones">más</a>).</li>
 </ul>
+<p><b>Idioma</b>: Menú › Opciones › Idioma (español o inglés); se aplica al reiniciar
+Zebamp.</p>
 <p>La configuración se guarda en <code>~/.config/zebamp/config.json</code>, junto con la
 posición de las ventanas.</p>
 """),
@@ -454,7 +515,7 @@ posición de las ventanas.</p>
         ("F1", "esta ayuda"),
         ("Alt+E", "lista de reproducción"), ("Alt+G", "ecualizador"),
         ("Alt+L", "biblioteca de medios"), ("Alt+R", "radio por Internet"),
-        ("Ctrl+Shift+L", "letras"), ("Ctrl+K Ctrl+Shift+K", "MilkDrop"),
+        ("Ctrl+Shift+L", "letras"), ("Ctrl+Shift+A", "carátula"), ("Ctrl+K Ctrl+Shift+K", "MilkDrop"),
         ("Alt+3", "información del archivo"), ("Alt+S", "explorador de skins"),
         ("Ctrl+P Alt+K", "preferencias"), ("Ctrl+W Alt+W", "modo compacto"),
         ("Ctrl+D", "tamaño doble"), ("Ctrl+T", "tiempo restante / transcurrido"),
@@ -508,7 +569,12 @@ autores.</p>
 """),
 ]
 
-TITLES = {k: t for k, t, _ in SECTIONS}
+def sections() -> list[tuple[str, str, str]]:
+    """The guide in the language in use (same keys and links in every language)."""
+    if i18n.language() == "en":
+        from .help_en import SECTIONS as english
+        return english
+    return SECTIONS
 
 
 def _plain(h: str) -> str:
@@ -524,7 +590,9 @@ class HelpWindow(QWidget):
     def __init__(self, app):
         super().__init__(None, Qt.WindowType.Window)
         self.app = app
-        self.setWindowTitle("Ayuda de Zebamp")
+        self.sections = sections()
+        self.titles = {key: title for key, title, _body in self.sections}
+        self.setWindowTitle(tr("Ayuda de Zebamp"))
         self.resize(940, 640)
         pal = getattr(app, "dialog_palette", None)
         if pal is not None:
@@ -532,19 +600,19 @@ class HelpWindow(QWidget):
         lay = QVBoxLayout(self)
         top = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Buscar en la ayuda (por ejemplo: ecualizador, atajo, letras)…")
+        self.search.setPlaceholderText(tr("Buscar en la ayuda (por ejemplo: ecualizador, atajo, letras)…"))
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._filter)
         self.search.returnPressed.connect(self._find_next)
         top.addWidget(self.search, 1)
-        for text, fn in (("◀", self._back), ("Inicio", lambda: self.show_section("inicio"))):
+        for text, fn in (("◀", self._back), (tr("Inicio"), lambda: self.show_section("inicio"))):
             b = QPushButton(text)
             b.clicked.connect(fn)
             top.addWidget(b)
         lay.addLayout(top)
         split = QSplitter()
         self.toc = QListWidget()
-        for key, title, _h in SECTIONS:
+        for key, title, _h in self.sections:
             it = QListWidgetItem(title)
             it.setData(Qt.ItemDataRole.UserRole, key)
             self.toc.addItem(it)
@@ -557,7 +625,7 @@ class HelpWindow(QWidget):
         split.setStretchFactor(1, 4)
         split.setSizes([210, 730])
         lay.addWidget(split, 1)
-        self.status = QLabel("F1: ayuda de la ventana activa · Enter en la búsqueda: siguiente coincidencia")
+        self.status = QLabel(tr("F1: ayuda de la ventana activa · Enter en la búsqueda: siguiente coincidencia"))
         lay.addWidget(self.status)
         self._history: list[str] = []
         self._current = None
@@ -589,11 +657,11 @@ class HelpWindow(QWidget):
 
     # ---------------------------------------------------------- navigation
     def show_section(self, key: str | None, push=True):
-        key = key if key in TITLES else "inicio"
+        key = key if key in self.titles else "inicio"
         if push and self._current and self._current != key:
             self._history.append(self._current)
         self._current = key
-        body = next(h for k, _t, h in SECTIONS if k == key)
+        body = next(h for k, _t, h in self.sections if k == key)
         doc = self.view.document()
         doc.setDefaultStyleSheet(self._css)
         self.view.setHtml(f"<html><body>{body}</body></html>")
@@ -614,7 +682,7 @@ class HelpWindow(QWidget):
 
     def _link(self, url: QUrl):
         frag = url.fragment() or url.toString().lstrip("#")
-        if frag in TITLES:
+        if frag in self.titles:
             self.show_section(frag)
         elif url.scheme() in ("http", "https"):
             from PySide6.QtGui import QDesktopServices
@@ -631,18 +699,19 @@ class HelpWindow(QWidget):
         for i in range(self.toc.count()):
             it = self.toc.item(i)
             key = it.data(Qt.ItemDataRole.UserRole)
-            body = next(h for k, _t, h in SECTIONS if k == key)
-            hay = _fold(TITLES[key] + " " + _plain(body))
+            body = next(h for k, _t, h in self.sections if k == key)
+            hay = _fold(self.titles[key] + " " + _plain(body))
             ok = all(w in hay for w in words)
             it.setHidden(not ok)
             if ok and first is None:
                 first = key
         if not words:
-            self.status.setText("F1: ayuda de la ventana activa · Enter en la búsqueda: siguiente coincidencia")
+            self.status.setText(tr("F1: ayuda de la ventana activa · Enter en la búsqueda: siguiente coincidencia"))
             self.show_section(self._current or "inicio", push=False)
             return
         n = sum(not self.toc.item(i).isHidden() for i in range(self.toc.count()))
-        self.status.setText(f"{n} secciones contienen «{text.strip()}»" if n else "Sin resultados")
+        self.status.setText(tr("{0} secciones contienen «{1}»").format(n, text.strip()) if n
+                            else tr("Sin resultados"))
         if first is not None:
             cur_ok = self._current and not self._item(self._current).isHidden()
             self.show_section(self._current if cur_ok else first, push=False)
@@ -698,7 +767,7 @@ CONTEXT = {
     "LyricsWindow": "letras", "MilkdropWindow": "vis", "MilkdropConfig": "vis",
     "PresetPicker": "vis", "PreferencesDialog": "preferencias", "FileInfoDialog": "info",
     "SkinBrowser": "skins", "BookmarksDialog": "marcadores", "JumpToFileDialog": "lista",
-    "PlaylistsDialog": "lista",
+    "PlaylistsDialog": "lista", "SmartListDialog": "biblioteca",
 }
 
 
@@ -715,9 +784,11 @@ def context_section(app, w) -> str:
         return "ecualizador"
     if fp is not None and fp is getattr(app, "ly_panel", None):
         return "letras"
+    if fp is not None and fp is getattr(app, "art_panel", None):
+        return "escritorio"
     if getattr(app, "modern", None) is not None:
         return "skins"
     return "principal"
 
 
-__all__ = ["SECTIONS", "HelpWindow", "context_section"]
+__all__ = ["SECTIONS", "HelpWindow", "context_section", "sections"]

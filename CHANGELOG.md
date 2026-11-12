@@ -3,6 +3,40 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versiones según [PEP 440](https://peps.python.org/pep-0440/).
 
+## Sin publicar
+
+### Nuevo
+- **Listas inteligentes**: listas por reglas (género, valoración, veces
+  escuchada, año, duración, días sin escucharla…) que se mantienen solas, con
+  su editor en la biblioteca.
+- **Scrobbling** a ListenBrainz y Last.fm (apagado por defecto); las escuchas
+  se guardan sin conexión y se envían después.
+- **Ventana de carátula** para los skins clásicos (Ctrl+Shift+A), acoplable y
+  redimensionable.
+- **Temporizador de apagado**: pausa en N minutos o al terminar el álbum.
+- **Perfiles de servidor MPD** para cambiar de servidor desde el menú.
+- **Interfaz y ayuda en inglés** (Opciones › Idioma, `--lang en`); el español
+  sigue siendo el idioma por defecto.
+- **MilkDrop en la pestaña de visualización** de los skins modernos (Bento,
+  Big Bento).
+- Soltar archivos sobre la ventana principal, el ecualizador o las letras los
+  reproduce; un skin soltado se instala.
+- Paquete para Arch Linux (`packaging/PKGBUILD`) y pruebas automáticas en
+  GitHub con cada cambio.
+- Soporte experimental de **Hyprland** (`hyprctl`) y modo genérico para otros
+  compositores; el código que habla con el compositor vive ahora en
+  `zebamp/compositor.py`.
+
+### Arreglado
+- Al mover la ventana principal a 2x o 3x, una ventana pegada (letras, lista)
+  podía quedar 1 px desfasada y dejar de moverse con el grupo.
+- Ctrl+Shift+A ya no selecciona toda la lista.
+
+### Interno
+- Las ventanas de letras y carátula comparten el marco (`ui/genpanel.py`).
+- El índice de la biblioteca guarda el año (se reconstruye una vez).
+- 128 pruebas automáticas (eran 70).
+
 ## 1.0.0rc1 - 2026-11-08
 
 Primer candidato a versión. Todo es nuevo; este resumen agrupa lo que incluye.

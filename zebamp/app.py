@@ -22,6 +22,7 @@ from .ui.eqwin import EqPanel
 from .ui.mainwin import MainPanel
 from .ui.plwin import PlaylistPanel
 from .vis import Visualizer
+from .i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -120,6 +121,11 @@ class ZebampApp:
         self.notifier = SongNotifier(self)
         from .stats import Stats
         self.stats = Stats(self.player)
+        from .scrobble import Scrobbler
+        self.scrobbler = Scrobbler(self.cfg, self.player, self.stats)
+        from .sleeptimer import SleepTimer
+        self.sleep = SleepTimer(self.player)
+        self.sleep.fired.connect(lambda: self.main_panel.set_temp_text(tr("Temporizador: música en pausa")))
         from .libindex import LibraryIndex
         # built in the background shortly after start: search is instant later
         self.library_index = LibraryIndex(self.player)
@@ -141,6 +147,8 @@ class ZebampApp:
         self.pl_panel = PlaylistPanel(self, self.shell)
         from .ui.lyricspanel import LyricsPanel
         self.ly_panel = LyricsPanel(self, self.shell)
+        from .ui.artpanel import ArtPanel
+        self.art_panel = ArtPanel(self, self.shell)
         for p in self.panels():
             p.sizeHintChanged.connect(self.relayout)
         self.library = None
@@ -166,7 +174,7 @@ class ZebampApp:
 
     # ------------------------------------------------------------ panels
     def panels(self):
-        return [self.main_panel, self.eq_panel, self.pl_panel, self.ly_panel]
+        return [self.main_panel, self.eq_panel, self.pl_panel, self.ly_panel, self.art_panel]
 
     def visible_panels(self):
         out = [self.main_panel]
@@ -176,10 +184,12 @@ class ZebampApp:
             out.append(self.pl_panel)
         if self.cfg["show_lyrics_panel"] and self.modern is None:
             out.append(self.ly_panel)
+        if self.cfg["show_art_panel"] and self.modern is None:
+            out.append(self.art_panel)
         return out
 
     # --------------------------------------------- free (magnetic) layout
-    PANEL_KEYS = ("main", "eq", "pl", "ly")
+    PANEL_KEYS = ("main", "eq", "pl", "ly", "art")
 
     def classic_free(self) -> bool:
         return self.cfg["classic_layout"] == "free"
@@ -285,9 +295,7 @@ class ZebampApp:
                     pos[k] = QPoint(int((scr0.x() + max(0, (scr0.width() - p.width()) / 2)) / s),
                                     int(scr0.y() / s) + 80)
                 else:
-                    a = pos[self._pkey(above)]
-                    # logical height: the widget may still have another scale's size
-                    pos[k] = QPoint(a.x(), a.y() + int(above.logical_size()[1]))
+                    pos[k] = self._newcomer_spot(p, above, vis)
         region = QRegion()
         from .canvas import keep_on_screens
         for p in vis:
@@ -302,14 +310,23 @@ class ZebampApp:
             region = region.united(self._panel_region(p, x * s, y * s))
         self.shell.setMask(region)
 
+    def _skin_rect(self, panel) -> QRect:
+        """A placed panel in skin pixels (its logical size: the widget may
+        still have another scale's size)."""
+        return QRect(self._ppos[self._pkey(panel)], QSize(*panel.logical_size()))
+
+    def _newcomer_spot(self, panel, above, vis) -> QPoint:
+        from .canvas import place_newcomer
+        s = self.scale
+        screens = [QRect(r.x() // s, r.y() // s, r.width() // s, r.height() // s) for r in self._screens_dev()]
+        stack = [self._skin_rect(q) for q in vis if self._pkey(q) in self._ppos]
+        return place_newcomer(*panel.logical_size(), self._skin_rect(above), stack, screens)
+
     def _drag_begin(self, panel, pt):
         group = [panel]
         if panel is self.main_panel:
             from .canvas import docked_keys
-            rects = {}
-            for o in self.visible_panels():
-                k = self._pkey(o)
-                rects[k] = QRect(self._ppos[k], QSize(*o.logical_size()))
+            rects = {self._pkey(o): self._skin_rect(o) for o in self.visible_panels()}
             by_key = dict(zip(self.PANEL_KEYS, self.panels(), strict=True))
             group = [by_key[k] for k in docked_keys("main", rects)]
         self._drag = (pt, group, {self._pkey(g): QPoint(self._ppos[self._pkey(g)]) for g in group})
@@ -839,9 +856,12 @@ class ZebampApp:
         if ctrl and shift and key == Qt.Key.Key_L:
             self.show_lyrics()
             return True
+        if ctrl and shift and key == Qt.Key.Key_A:
+            self.toggle_art_panel()
+            return True
         if ctrl and alt and Qt.Key.Key_0 <= key <= Qt.Key.Key_5:
             self.stats.rate_current(key - Qt.Key.Key_0)
-            self.main_panel.set_temp_text("Valoración: " + ("*" * (key - Qt.Key.Key_0) or "ninguna"))
+            self.main_panel.set_temp_text(tr("Valoración: ") + ("*" * (key - Qt.Key.Key_0) or tr("ninguna")))
             return True
         if alt:
             table = {K.Key_E: self.toggle_playlist_window, K.Key_G: self.toggle_eq_window,
@@ -886,7 +906,7 @@ class ZebampApp:
         if fn:
             fn()
             if key in (K.Key_Up, K.Key_Down):
-                self.main_panel.set_temp_text(f"Volumen: {max(0, pl.volume)}%")
+                self.main_panel.set_temp_text(tr("Volumen: {0}%").format(max(0, pl.volume)))
             return True
         return False
 
@@ -895,37 +915,37 @@ class ZebampApp:
         md = self.player.music_directory
         return md if md and os.path.isdir(md) else os.path.expanduser("~/Music")
 
-    _FILTER = ("Audio (*.mp3 *.flac *.ogg *.oga *.opus *.m4a *.aac *.wav *.wv *.ape "
-               "*.mpc *.wma *.aiff *.dsf *.mod *.xm *.s3m *.it *.spc *.nsf *.vgm *.vgz "
-               "*.sid *.mid *.m3u *.m3u8 *.pls *.cue);;Todos (*)")
+    _FILTER = (tr("Audio (*.mp3 *.flac *.ogg *.oga *.opus *.m4a *.aac *.wav *.wv *.ape *.mpc *.wma "
+                  "*.aiff *.dsf *.mod *.xm *.s3m *.it *.spc *.nsf *.vgm *.vgz *.sid *.mid *.m3u *.m3u8 "
+                  "*.pls *.cue);;Todos (*)"))
 
     def _pick_files(self, title) -> list[str]:
         files, _ = QFileDialog.getOpenFileNames(None, title, self._music_dir(), self._FILTER)
         return files
 
     def open_files(self):
-        files = self._pick_files("Abrir archivos")
+        files = self._pick_files(tr("Abrir archivos"))
         if files:
             self.player.add_paths(files, replace=True)
 
     def open_dir(self):
-        d = QFileDialog.getExistingDirectory(None, "Abrir carpeta", self._music_dir())
+        d = QFileDialog.getExistingDirectory(None, tr("Abrir carpeta"), self._music_dir())
         if d:
             self.player.add_paths([d], replace=True)
 
     def add_files(self):
-        files = self._pick_files("Añadir archivos a la lista")
+        files = self._pick_files(tr("Añadir archivos a la lista"))
         if files:
             self.player.add_paths(files)
 
     def add_dir(self):
-        d = QFileDialog.getExistingDirectory(None, "Añadir carpeta a la lista", self._music_dir())
+        d = QFileDialog.getExistingDirectory(None, tr("Añadir carpeta a la lista"), self._music_dir())
         if d:
             self.player.add_paths([d])
 
     def _ask_url(self, title) -> str | None:
         recent = self.cfg["recent_urls"] or []
-        url, ok = QInputDialog.getItem(None, title, "URL (http://, https://, etc.):",
+        url, ok = QInputDialog.getItem(None, title, tr("URL (http://, https://, etc.):"),
                                        recent or [""], 0, True)
         url = (url or "").strip()
         if not ok or not url:
@@ -936,12 +956,12 @@ class ZebampApp:
         return url
 
     def add_url(self):
-        url = self._ask_url("Añadir URL")
+        url = self._ask_url(tr("Añadir URL"))
         if url:
             self.player.add([url])
 
     def add_url_play(self):
-        url = self._ask_url("Abrir URL")
+        url = self._ask_url(tr("Abrir URL"))
         if url:
             self.player.add([url], replace=True)
 
@@ -996,7 +1016,7 @@ class ZebampApp:
         from . import milkdrop
         ok, err = milkdrop.available()
         if not ok:
-            QMessageBox.warning(None, "MilkDrop", "La visualización MilkDrop necesita projectM.\n\n" + err)
+            QMessageBox.warning(None, "MilkDrop", tr("La visualización MilkDrop necesita projectM.\n\n") + err)
             return
         if w is None:
             w = self.milkdrop = milkdrop.MilkdropWindow(self)
@@ -1092,23 +1112,23 @@ class ZebampApp:
 
     def _wm_focus(self, w):
         """Wayland doesn't let a background app take focus by itself: when
-        opened from a global hotkey, ask sway to focus the window."""
-        if not os.environ.get("SWAYSOCK"):
-            return
+        opened from a global hotkey, ask the compositor to focus the window."""
         import re
 
         from PySide6.QtCore import QProcess
-        title = re.escape(w.windowTitle())
-        # startDetached: Qt reaps the process (no zombie left behind)
-        QTimer.singleShot(150, lambda: QProcess.startDetached(
-            "swaymsg", [f'[pid={os.getpid()} title="^{title}$"] focus']))
+
+        from . import compositor
+        command = compositor.current().focus_command(re.escape(w.windowTitle()))
+        if command:
+            # startDetached: Qt reaps the process (no zombie left behind)
+            QTimer.singleShot(150, lambda: QProcess.startDetached(command[0], command[1:]))
 
     def show_jump_to_time(self):
         pl = self.player
         if pl.state == "stop" or pl.duration <= 0:
             return
-        txt, ok = QInputDialog.getText(None, "Saltar a tiempo",
-                                       f"Tiempo (m:ss) — duración {pl.duration // 60:.0f}:{int(pl.duration % 60):02d}:")
+        prompt = tr("Tiempo (m:ss) — duración {0:.0f}:{1:02d}:").format(pl.duration // 60, int(pl.duration % 60))
+        txt, ok = QInputDialog.getText(None, tr("Saltar a tiempo"), prompt)
         if not ok or not txt.strip():
             return
         try:
@@ -1148,15 +1168,15 @@ class ZebampApp:
         self.show_help(context_section(self, w))
 
     def build_help_menu(self, parent) -> QMenu:
-        m = QMenu("Ayuda", parent)
-        self._act(m, "Ayuda de Zebamp", self.help_for_active_window, "F1")
+        m = QMenu(tr("Ayuda"), parent)
+        self._act(m, tr("Ayuda de Zebamp"), self.help_for_active_window, "F1")
         m.addSeparator()
-        for key, label in (("primeros", "Primeros pasos"), ("atajos", "Atajos de teclado"),
-                           ("buscar", "Búsqueda instantánea"), ("skins", "Skins"),
-                           ("problemas", "Solución de problemas")):
+        for key, label in (("primeros", tr("Primeros pasos")), ("atajos", tr("Atajos de teclado")),
+                           ("buscar", tr("Búsqueda instantánea")), ("skins", "Skins"),
+                           ("problemas", tr("Solución de problemas"))):
             self._act(m, label, lambda k=key: self.show_help(k))
         m.addSeparator()
-        self._act(m, f"Acerca de Zebamp {__version__}…", self.show_about)
+        self._act(m, tr("Acerca de Zebamp {0}…").format(__version__), self.show_about)
         return m
 
     def show_about(self):
@@ -1196,43 +1216,45 @@ class ZebampApp:
         m = self._menu()
         self._act(m, f"Zebamp {__version__}…", self.show_about)
         m.addSeparator()
-        self._act(m, "Reproducir archivo…", self.open_files, "L")
-        self._act(m, "Reproducir carpeta…", self.open_dir, "Shift+L")
-        self._act(m, "Reproducir URL…", self.add_url_play, "Ctrl+L")
+        self._act(m, tr("Reproducir archivo…"), self.open_files, "L")
+        self._act(m, tr("Reproducir carpeta…"), self.open_dir, "Shift+L")
+        self._act(m, tr("Reproducir URL…"), self.add_url_play, "Ctrl+L")
         m.addSeparator()
-        self._act(m, "Ventana principal compacta", self.toggle_main_shade, "Ctrl+W",
+        self._act(m, tr("Ventana principal compacta"), self.toggle_main_shade, "Ctrl+W",
                   checked=self.cfg["main_shade"])
-        self._act(m, "Lista de reproducción", self.toggle_playlist_window, "Alt+E",
+        self._act(m, tr("Lista de reproducción"), self.toggle_playlist_window, "Alt+E",
                   checked=self.cfg["show_playlist"])
-        self._act(m, "Ecualizador", self.toggle_eq_window, "Alt+G", checked=self.cfg["show_eq"])
-        self._act(m, "Biblioteca de medios", self.show_library, "Alt+L",
+        self._act(m, tr("Ecualizador"), self.toggle_eq_window, "Alt+G", checked=self.cfg["show_eq"])
+        self._act(m, tr("Biblioteca de medios"), self.show_library, "Alt+L",
                   checked=self.library is not None and self.library.isVisible())
-        self._act(m, "Buscar canciones…", self.show_search, "Ctrl+F")
-        self._act(m, "Radio por Internet…", self.show_radio, "Alt+R")
+        self._act(m, tr("Buscar canciones…"), self.show_search, "Ctrl+F")
+        self._act(m, tr("Radio por Internet…"), self.show_radio, "Alt+R")
         if self.modern is None:
-            self._act(m, "Letras", self.toggle_lyrics_panel, "Ctrl+Shift+L",
+            self._act(m, tr("Letras"), self.toggle_lyrics_panel, "Ctrl+Shift+L",
                       checked=self.cfg["show_lyrics_panel"])
+            self._act(m, tr("Carátula"), self.toggle_art_panel, "Ctrl+Shift+A",
+                      checked=self.cfg["show_art_panel"])
         else:
-            self._act(m, "Letras…", self.show_lyrics, "Ctrl+Shift+L")
+            self._act(m, tr("Letras…"), self.show_lyrics, "Ctrl+Shift+L")
         m.addSeparator()
         m.addMenu(self.build_bookmarks_menu(m))
         m.addMenu(self.build_skins_menu(m))
         m.addMenu(self.build_options_menu(m))
         m.addMenu(self.build_playback_menu(m))
         vm = self.build_vis_menu(m)
-        vm.setTitle("Visualización")
+        vm.setTitle(tr("Visualización"))
         m.addMenu(vm)
         m.addMenu(self.build_mpd_menu(m))
         m.addMenu(self.build_help_menu(m))
         m.addSeparator()
-        self._act(m, "Salir", self.quit, "Ctrl+Q")
+        self._act(m, tr("Salir"), self.quit, "Ctrl+Q")
         return m
 
     # ------------------------------------------------------- bookmarks
     def build_bookmarks_menu(self, parent) -> QMenu:
-        m = QMenu("Marcadores", parent)
-        self._act(m, "Añadir canción actual (en este punto)", self.add_bookmark, "Ctrl+Alt+B")
-        self._act(m, "Editar marcadores…", self.edit_bookmarks)
+        m = QMenu(tr("Marcadores"), parent)
+        self._act(m, tr("Añadir canción actual (en este punto)"), self.add_bookmark, "Ctrl+Alt+B")
+        self._act(m, tr("Editar marcadores…"), self.edit_bookmarks)
         bms = list(self.cfg["bookmarks"] or [])
         if bms:
             m.addSeparator()
@@ -1255,7 +1277,7 @@ class ZebampApp:
         bms.insert(0, {"file": s["file"], "title": song_title(s), "pos": pos})
         self.cfg["bookmarks"] = bms[:200]
         self.cfg.save()
-        self.main_panel.set_temp_text("Marcador añadido")
+        self.main_panel.set_temp_text(tr("Marcador añadido"))
 
     def play_bookmark(self, b):
         pl = self.player
@@ -1307,6 +1329,14 @@ class ZebampApp:
         if self.cfg["show_lyrics_panel"]:
             self.set_focused_panel(self.ly_panel)
 
+    def toggle_art_panel(self):
+        """Ctrl+Shift+A: the album art window of classic skins."""
+        if self.modern is not None:
+            return                      # modern skins bring their own album art
+        self._toggle_cfg_panel("show_art_panel")
+        if self.cfg["show_art_panel"]:
+            self.set_focused_panel(self.art_panel)
+
     def show_lyrics_window(self):
         from .ui.lyrics import LyricsWindow
         d = getattr(self, "_lyrics", None)
@@ -1322,49 +1352,49 @@ class ZebampApp:
 
     def build_skins_menu(self, parent) -> QMenu:
         m = QMenu("Skins", parent)
-        self._act(m, "Explorador de skins…", self.show_skin_browser, "Alt+S")
-        self._act(m, "Cargar skin desde archivo…", self.pick_skin_file)
+        self._act(m, tr("Explorador de skins…"), self.show_skin_browser, "Alt+S")
+        self._act(m, tr("Cargar skin desde archivo…"), self.pick_skin_file)
         m.addSeparator()
         cur = self.cfg["skin"]
-        self._act(m, "<Zebamp (predeterminado)>", self.use_default_skin, checked=not cur)
+        self._act(m, tr("<Zebamp (predeterminado)>"), self.use_default_skin, checked=not cur)
         for f in self.skin_files()[:60]:
             name = os.path.splitext(os.path.basename(f))[0]
             self._act(m, name, lambda f=f: self.load_skin(f), checked=os.path.abspath(f) == os.path.abspath(cur or "-"))
         m.addSeparator()
-        self._act(m, "Abrir carpeta de skins", lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(SKIN_DIR)))
-        self._act(m, "Conseguir más skins (Winamp Skin Museum)…",
+        self._act(m, tr("Abrir carpeta de skins"), lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(SKIN_DIR)))
+        self._act(m, tr("Conseguir más skins (Winamp Skin Museum)…"),
                   lambda: QDesktopServices.openUrl(QUrl("https://skins.webamp.org/")))
         return m
 
     def pick_skin_file(self):
-        f, _ = QFileDialog.getOpenFileName(None, "Cargar skin", os.path.expanduser("~/Downloads"),
-                                           "Skins de Winamp (*.wsz *.wal *.zip);;Todos (*)")
+        f, _ = QFileDialog.getOpenFileName(None, tr("Cargar skin"), os.path.expanduser("~/Downloads"),
+                                           tr("Skins de Winamp (*.wsz *.wal *.zip);;Todos (*)"))
         if f:
             from .ui.dialogs import install_skin
             dest = install_skin(f)
             self.load_skin(dest or f)
 
     def build_options_menu(self, parent) -> QMenu:
-        m = QMenu("Opciones", parent)
+        m = QMenu(tr("Opciones"), parent)
         pl = self.player
-        self._act(m, "Preferencias…", self.show_preferences, "Ctrl+P")
+        self._act(m, tr("Preferencias…"), self.show_preferences, "Ctrl+P")
         m.addSeparator()
-        self._act(m, "Tiempo restante", self.toggle_time_mode, "Ctrl+T",
+        self._act(m, tr("Tiempo restante"), self.toggle_time_mode, "Ctrl+T",
                   checked=self.cfg["time_remaining"])
-        sm = m.addMenu("Tamaño")
+        sm = m.addMenu(tr("Tamaño"))
         if self.modern is not None:
             for s in (1.0, 1.25, 1.5, 1.75, 2.0):
                 self._act(sm, f"{s:g}x", lambda s=s: self.set_modern_scale(s),
                           "Ctrl+D" if s == 1.5 else None, checked=abs(self.mscale - s) < 0.01)
             sm.addSeparator()
-            for key, label in (("free", "Ventanas sueltas con imán (como Winamp)"),
-                               ("fixed", "Todas pegadas en un bloque")):
+            for key, label in (("free", tr("Ventanas sueltas con imán (como Winamp)")),
+                               ("fixed", tr("Todas pegadas en un bloque"))):
                 self._act(sm, label, lambda k=key: self.set_modern_layout(k),
                           checked=self.cfg["modern_layout"] == key)
-            self._act(sm, "Reordenar ventanas del skin", self.reset_modern_positions)
+            self._act(sm, tr("Reordenar ventanas del skin"), self.reset_modern_positions)
             sets = list(self.modern.skin.gammasets)
             if sets:
-                tm = m.addMenu("Tema de color del skin")
+                tm = m.addMenu(tr("Tema de color del skin"))
                 cur = self.modern.skin.gamma_name
                 for n in sets:
                     self._act(tm, n, lambda n=n: self.modern.set_color_theme(n), checked=n == cur)
@@ -1373,57 +1403,111 @@ class ZebampApp:
                 self._act(sm, f"{s}x", lambda s=s: self.set_scale(s), "Ctrl+D" if s == 2 else None,
                           checked=self.scale == s)
             sm.addSeparator()
-            self._act(sm, "Suavizar skins de mapa de bits (Scale2x/3x)", self.toggle_classic_smooth,
+            self._act(sm, tr("Suavizar skins de mapa de bits (Scale2x/3x)"), self.toggle_classic_smooth,
                       checked=bool(self.cfg["classic_smooth"]))
-        self._act(m, "Cerrar a la bandeja", lambda: self._toggle_cfg("close_to_tray"),
+        self._act(m, tr("Cerrar a la bandeja"), lambda: self._toggle_cfg("close_to_tray"),
                   checked=bool(self.cfg["close_to_tray"]))
-        self._act(m, "Notificar cambio de canción", self.toggle_notify,
+        self._act(m, tr("Notificar cambio de canción"), self.toggle_notify,
                   checked=bool(self.cfg["notify_song"]))
-        self._act(m, "Siempre visible", self.toggle_always_on_top,
+        self._act(m, tr("Siempre visible"), self.toggle_always_on_top,
                   checked=self.cfg.get("always_on_top", False))
+        m.addMenu(self.build_language_menu(m))
         m.addSeparator()
-        rm = m.addMenu("Repetir")
+        rm = m.addMenu(tr("Repetir"))
         mode = "track" if pl.repeat and pl.single else "all" if pl.repeat else "off"
-        for key, label in (("off", "No"), ("all", "Toda la lista"), ("track", "Pista actual")):
+        for key, label in (("off", "No"), ("all", tr("Toda la lista")), ("track", tr("Pista actual"))):
             self._act(rm, label, lambda k=key: pl.set_repeat_mode(k), checked=mode == key)
-        self._act(m, "Aleatorio", pl.toggle_random, "S", checked=pl.random)
-        self._act(m, "Consumir (quitar al reproducir)", lambda: pl.set_option("consume", not pl.consume),
+        self._act(m, tr("Aleatorio"), pl.toggle_random, "S", checked=pl.random)
+        self._act(m, tr("Consumir (quitar al reproducir)"), lambda: pl.set_option("consume", not pl.consume),
                   checked=pl.consume)
-        self._act(m, "Parar tras la pista actual", lambda: pl.set_option("single", not pl.single),
+        self._act(m, tr("Parar tras la pista actual"), lambda: pl.set_option("single", not pl.single),
                   checked=pl.single and not pl.repeat)
-        xm = m.addMenu("Fundido entre pistas")
+        xm = m.addMenu(tr("Fundido entre pistas"))
         for secs in (0, 2, 4, 6, 8, 10):
-            self._act(xm, "Desactivado" if secs == 0 else f"{secs} s",
+            self._act(xm, tr("Desactivado") if secs == 0 else f"{secs} s",
                       lambda s=secs: pl.set_crossfade(s), checked=pl.crossfade == secs)
+        m.addMenu(self.build_sleep_menu(m))
         return m
 
+    # --------------------------------------------------------- language
+    def build_language_menu(self, parent) -> QMenu:
+        from . import i18n
+        m = QMenu(tr("Idioma"), parent)
+        current = self.cfg["language"]
+        for code, name in i18n.LANGUAGES.items():
+            self._act(m, name, lambda c=code: self.set_language(c), checked=current == code)
+        self._act(m, tr("El del sistema"), lambda: self.set_language("auto"), checked=current == "auto")
+        return m
+
+    def set_language(self, code: str):
+        """Saved now, used from the next start (see i18n.py for why)."""
+        from . import i18n
+        if code == self.cfg["language"]:
+            return
+        self.cfg["language"] = code
+        self.cfg.save()
+        if i18n.pick_language(code) != i18n.language():
+            QMessageBox.information(None, "Zebamp", tr("El idioma cambiará al reiniciar Zebamp."))
+
+    # ------------------------------------------------------ sleep timer
+    SLEEP_MINUTES = (15, 30, 45, 60, 90, 120)
+
+    def build_sleep_menu(self, parent) -> QMenu:
+        from .sleeptimer import ALBUM
+        sleep = self.sleep
+        m = QMenu(tr("Temporizador de apagado"), parent)
+        if sleep.active:
+            state = m.addAction(sleep.describe())
+            state.setEnabled(False)
+            self._act(m, tr("Cancelar"), sleep.cancel)
+            m.addSeparator()
+        for minutes in self.SLEEP_MINUTES:
+            self._act(m, tr("Pausar en {0} min").format(minutes), lambda n=minutes: self.start_sleep(n))
+        self._act(m, tr("Pausar en…"), self.ask_sleep_minutes)
+        self._act(m, tr("Pausar al terminar el álbum"), self.start_sleep_album, checked=sleep.mode == ALBUM)
+        return m
+
+    def start_sleep(self, minutes: float):
+        self.sleep.start_minutes(minutes)
+        self.main_panel.set_temp_text(tr("Temporizador: ") + self.sleep.describe().lower())
+
+    def start_sleep_album(self):
+        self.sleep.start_album()
+        self.main_panel.set_temp_text(tr("Temporizador: al terminar el álbum"))
+
+    def ask_sleep_minutes(self):
+        minutes, ok = QInputDialog.getInt(None, tr("Temporizador de apagado"), tr("Pausar dentro de (minutos):"),
+                                          30, 1, 24 * 60)
+        if ok:
+            self.start_sleep(minutes)
+
     def build_playback_menu(self, parent) -> QMenu:
-        m = QMenu("Reproducción", parent)
+        m = QMenu(tr("Reproducción"), parent)
         pl = self.player
-        self._act(m, "Anterior", pl.previous, "Z")
-        self._act(m, "Reproducir", pl.play, "X")
-        self._act(m, "Pausa", pl.pause, "C")
-        self._act(m, "Detener", pl.stop, "V")
-        self._act(m, "Siguiente", pl.next, "B")
+        self._act(m, tr("Anterior"), pl.previous, "Z")
+        self._act(m, tr("Reproducir"), pl.play, "X")
+        self._act(m, tr("Pausa"), pl.pause, "C")
+        self._act(m, tr("Detener"), pl.stop, "V")
+        self._act(m, tr("Siguiente"), pl.next, "B")
         m.addSeparator()
-        self._act(m, "Retroceder 5 s", lambda: pl.seek_relative(-5), "Left")
-        self._act(m, "Avanzar 5 s", lambda: pl.seek_relative(5), "Right")
-        self._act(m, "Subir volumen", lambda: pl.set_volume(pl.volume + 2), "Up")
-        self._act(m, "Bajar volumen", lambda: pl.set_volume(pl.volume - 2), "Down")
+        self._act(m, tr("Retroceder 5 s"), lambda: pl.seek_relative(-5), "Left")
+        self._act(m, tr("Avanzar 5 s"), lambda: pl.seek_relative(5), "Right")
+        self._act(m, tr("Subir volumen"), lambda: pl.set_volume(pl.volume + 2), "Up")
+        self._act(m, tr("Bajar volumen"), lambda: pl.set_volume(pl.volume - 2), "Down")
         m.addSeparator()
-        self._act(m, "Saltar a archivo…", self.show_jump_to_file, "J")
-        self._act(m, "Buscar canciones en la biblioteca…", self.show_search, "Ctrl+F")
-        self._act(m, "Saltar a tiempo…", self.show_jump_to_time, "Ctrl+J")
-        self._act(m, "Información del archivo…", self.show_file_info, "Alt+3")
-        rm = m.addMenu("Valorar canción actual")
+        self._act(m, tr("Saltar a archivo…"), self.show_jump_to_file, "J")
+        self._act(m, tr("Buscar canciones en la biblioteca…"), self.show_search, "Ctrl+F")
+        self._act(m, tr("Saltar a tiempo…"), self.show_jump_to_time, "Ctrl+J")
+        self._act(m, tr("Información del archivo…"), self.show_file_info, "Alt+3")
+        rm = m.addMenu(tr("Valorar canción actual"))
         cur = self.stats.rating((self.player.song or {}).get("file", ""))
         for n in range(5, -1, -1):
-            self._act(rm, "★" * n if n else "Sin valoración", lambda n=n: self.stats.rate_current(n),
+            self._act(rm, "★" * n if n else tr("Sin valoración"), lambda n=n: self.stats.rate_current(n),
                       f"Ctrl+Alt+{n}", checked=cur == n)
         return m
 
     def build_vis_menu(self, parent=None) -> QMenu:
-        m = QMenu("Visualización", parent)
+        m = QMenu(tr("Visualización"), parent)
         cfg = self.cfg
 
         def setc(k, v):
@@ -1433,40 +1517,45 @@ class ZebampApp:
                 self.vis.configure()
             for p in self.panels():
                 p.update()
-        g = m.addMenu("Modo")
-        for key, label in (("spectrum", "Analizador de espectro"), ("oscilloscope", "Osciloscopio"),
-                           ("off", "Desactivado")):
+        g = m.addMenu(tr("Modo"))
+        for key, label in (("spectrum", tr("Analizador de espectro")), ("oscilloscope", tr("Osciloscopio")),
+                           ("off", tr("Desactivado"))):
             self._act(g, label, lambda k=key: self.set_vis_mode(k), checked=cfg["vis_mode"] == key)
-        a = m.addMenu("Analizador")
-        for key, label in (("normal", "Estilo normal"), ("fire", "Estilo fuego"), ("line", "Estilo línea")):
+        a = m.addMenu(tr("Analizador"))
+        for key, label in (("normal", tr("Estilo normal")), ("fire", tr("Estilo fuego")), ("line", tr("Estilo línea"))):
             self._act(a, label, lambda k=key: setc("vis_coloring", k), checked=cfg["vis_coloring"] == key)
         a.addSeparator()
-        self._act(a, "Barras gruesas", lambda: setc("vis_bands", "thick"), checked=cfg["vis_bands"] == "thick")
-        self._act(a, "Barras finas", lambda: setc("vis_bands", "thin"), checked=cfg["vis_bands"] == "thin")
+        self._act(a, tr("Barras gruesas"), lambda: setc("vis_bands", "thick"), checked=cfg["vis_bands"] == "thick")
+        self._act(a, tr("Barras finas"), lambda: setc("vis_bands", "thin"), checked=cfg["vis_bands"] == "thin")
         a.addSeparator()
-        self._act(a, "Mostrar picos", lambda: setc("vis_peaks", not cfg["vis_peaks"]), checked=cfg["vis_peaks"])
-        o = m.addMenu("Osciloscopio")
-        for key, label in (("dots", "Puntos"), ("lines", "Líneas"), ("solid", "Sólido")):
+        self._act(a, tr("Mostrar picos"), lambda: setc("vis_peaks", not cfg["vis_peaks"]), checked=cfg["vis_peaks"])
+        o = m.addMenu(tr("Osciloscopio"))
+        for key, label in (("dots", tr("Puntos")), ("lines", tr("Líneas")), ("solid", tr("Sólido"))):
             self._act(o, label, lambda k=key: setc("vis_osc_style", k), checked=cfg["vis_osc_style"] == key)
-        names = ["Más lenta", "Lenta", "Moderada", "Rápida", "Más rápida"]
-        f = m.addMenu("Caída del analizador")
+        names = [tr("Más lenta"), tr("Lenta"), tr("Moderada"), tr("Rápida"), tr("Más rápida")]
+        f = m.addMenu(tr("Caída del analizador"))
         for i, n in enumerate(names):
             self._act(f, n, lambda i=i: setc("vis_falloff", i), checked=cfg["vis_falloff"] == i)
-        f = m.addMenu("Caída de los picos")
+        f = m.addMenu(tr("Caída de los picos"))
         for i, n in enumerate(names):
             self._act(f, n, lambda i=i: setc("vis_peak_falloff", i), checked=cfg["vis_peak_falloff"] == i)
-        self._act(m, "«Siguiente preset» al azar", lambda: setc("vis_next_random", not cfg["vis_next_random"]),
+        self._act(m, tr("«Siguiente preset» al azar"), lambda: setc("vis_next_random", not cfg["vis_next_random"]),
                   checked=bool(cfg["vis_next_random"]))
-        self._act(m, "Configurar MilkDrop…", self.show_milkdrop_config)
-        self._act(m, "MilkDrop (projectM)…", self.toggle_milkdrop, "Ctrl+Shift+K",
+        if self.modern is not None:
+            slot = m.addMenu(tr("Pestaña de visualización del skin"))
+            for key, label in (("spectrum", tr("Analizador de espectro")), ("milkdrop", "MilkDrop (projectM)")):
+                self._act(slot, label, lambda k=key: self.set_modern_vis_slot(k),
+                          checked=cfg["modern_vis_slot"] == key)
+        self._act(m, tr("Configurar MilkDrop…"), self.show_milkdrop_config)
+        self._act(m, tr("MilkDrop (projectM)…"), self.toggle_milkdrop, "Ctrl+Shift+K",
                   checked=bool(getattr(self, "milkdrop", None) and self.milkdrop.isVisible()))
         m.addSeparator()
-        r = m.addMenu("Fotogramas por segundo")
+        r = m.addMenu(tr("Fotogramas por segundo"))
         for fps in (20, 30, 50, 60, 70):
             self._act(r, str(fps), lambda v=fps: setc("vis_fps", v), checked=cfg["vis_fps"] == fps)
-        src = m.addMenu("Fuente de audio")
-        for key, label in (("auto", "Automática (fifo; PipeWire si el fifo lo usa otro programa)"),
-                           ("fifo", "Salida fifo de MPD"), ("pipewire", "Captura de PipeWire")):
+        src = m.addMenu(tr("Fuente de audio"))
+        for key, label in (("auto", tr("Automática (fifo; PipeWire si el fifo lo usa otro programa)")),
+                           ("fifo", tr("Salida fifo de MPD")), ("pipewire", tr("Captura de PipeWire"))):
             self._act(src, label, lambda k=key: self._set_vis_source(k), checked=cfg["vis_source"] == key)
         from .vis import PipeWireCapture
         r = self.vis.reader
@@ -1474,17 +1563,24 @@ class ZebampApp:
             m.addSeparator()
             if isinstance(r, PipeWireCapture):
                 users = ", ".join(sorted(set(self.vis.shared_with)))
-                why = f" (el fifo lo usa {users})" if users else ""
-                info = "Audio: captura de PipeWire" + why
+                why = tr(" (el fifo lo usa {0})").format(users) if users else ""
+                info = tr("Audio: captura de PipeWire") + why
             else:
-                info = f"Audio: {r.path}"
+                info = tr("Audio: {0}").format(r.path)
             a = m.addAction(info)
             a.setEnabled(False)
         if not self.vis.available:
             m.addSeparator()
-            a = m.addAction("Sin datos: añade una salida fifo en mpd.conf")
+            a = m.addAction(tr("Sin datos: añade una salida fifo en mpd.conf"))
             a.setEnabled(False)
         return m
+
+    def set_modern_vis_slot(self, kind: str):
+        """What fills the visualisation tab of modern skins (Bento…)."""
+        self.cfg["modern_vis_slot"] = kind
+        self.cfg.save()
+        if self.modern is not None and self.modern.skin.path:
+            self.load_skin(self.modern.skin.path, save=False)      # slots are built with the skin
 
     def _set_vis_source(self, key):
         self.cfg["vis_source"] = key
@@ -1503,35 +1599,106 @@ class ZebampApp:
     def build_mpd_menu(self, parent) -> QMenu:
         m = QMenu("MPD", parent)
         pl = self.player
-        st = "conectado a " if pl.connected else "sin conexión con "
+        st = tr("conectado a ") if pl.connected else tr("sin conexión con ")
         a = m.addAction(st + pl.conn.addr.describe())
         a.setEnabled(False)
-        self._act(m, "Actualizar base de datos", lambda: pl.update_database(), enabled=pl.connected)
-        om = m.addMenu("Salidas de audio")
+        self._act(m, tr("Actualizar base de datos"), lambda: pl.update_database(), enabled=pl.connected)
+        om = m.addMenu(tr("Salidas de audio"))
         for o in pl.outputs():
             self._act(om, o.get("outputname", "?"), lambda i=o.get("outputid"): pl.toggle_output(i),
                       checked=o.get("outputenabled") == "1")
-        self._act(m, "Conexión…", self.show_preferences)
+        m.addMenu(self.build_profiles_menu(m))
+        self._act(m, tr("Conexión…"), self.show_preferences)
         return m
+
+    # ------------------------------------------------------ smart lists
+    def smart_lists(self) -> list[dict]:
+        from .smartlist import clean_smart_lists
+        return clean_smart_lists(self.cfg["smart_lists"])
+
+    def save_smart_lists(self, lists: list[dict]):
+        self.cfg["smart_lists"] = lists
+        self.cfg.save()
+
+    # -------------------------------------------------- server profiles
+    def profiles(self) -> list[dict]:
+        from .profiles import clean_profiles
+        return clean_profiles(self.cfg["mpd_profiles"])
+
+    def build_profiles_menu(self, parent) -> QMenu:
+        m = QMenu(tr("Servidor"), parent)
+        current = self.cfg["mpd_profile"] or ""
+        # a connection typed by hand in Preferences is neither automatic nor a profile
+        manual = bool(self.cfg["mpd_host"]) and not current
+        self._act(m, tr("Automático (este equipo)"), lambda: self.use_profile(""),
+                  checked=not current and not manual)
+        for profile in self.profiles():
+            self._act(m, profile["name"], lambda n=profile["name"]: self.use_profile(n),
+                      checked=profile["name"] == current)
+        m.addSeparator()
+        self._act(m, tr("Guardar la conexión actual como perfil…"), self.save_profile)
+        if current:
+            self._act(m, tr("Quitar el perfil «{0}»").format(current), lambda: self.remove_profile(current))
+        return m
+
+    def use_profile(self, name: str):
+        """Connect to a saved server ("" = the automatic local one)."""
+        from .profiles import find_profile, profile_address
+        profile = find_profile(self.profiles(), name) if name else None
+        if name and profile is None:
+            return
+        cfg = self.cfg
+        cfg["mpd_profile"] = profile["name"] if profile else ""
+        cfg["mpd_host"] = profile["host"] if profile else ""
+        cfg["mpd_port"] = profile["port"] if profile else 6600
+        cfg["mpd_password"] = profile["password"] if profile else ""
+        cfg.save()
+        self.connect_to(profile_address(profile))
+
+    def connect_to(self, addr):
+        """Switch server: ratings and the search index belong to each server."""
+        self.player.set_address(addr)
+        QTimer.singleShot(1500, self.stats.load)
+        QTimer.singleShot(2000, self.library_index.refresh)
+
+    def save_profile(self):
+        from .profiles import with_profile
+        addr = self.player.conn.addr
+        name, ok = QInputDialog.getText(None, tr("Guardar perfil"), tr("Nombre para {0}:").format(addr.describe()))
+        name = name.strip()
+        if not ok or not name:
+            return
+        self.cfg["mpd_profiles"] = with_profile(
+            self.profiles(), {"name": name, "host": addr.host, "port": addr.port, "password": addr.password})
+        self.cfg["mpd_profile"] = name
+        self.cfg["mpd_host"], self.cfg["mpd_port"], self.cfg["mpd_password"] = addr.host, addr.port, addr.password
+        self.cfg.save()
+
+    def remove_profile(self, name: str):
+        from .profiles import without_profile
+        self.cfg["mpd_profiles"] = without_profile(self.profiles(), name)
+        if self.cfg["mpd_profile"] == name:
+            self.cfg["mpd_profile"] = ""        # stay connected; it is now a manual connection
+        self.cfg.save()
 
     def show_playlist_context_menu(self, gp: QPoint):
         m = self._menu()
         pp = self.pl_panel
         rows = pp.selected_rows()
-        self._act(m, "Reproducir", pp.play_cursor, "Enter", enabled=bool(rows))
-        self._act(m, "Información del archivo…", self.show_file_info_selected, "Alt+3", enabled=bool(rows))
+        self._act(m, tr("Reproducir"), pp.play_cursor, "Enter", enabled=bool(rows))
+        self._act(m, tr("Información del archivo…"), self.show_file_info_selected, "Alt+3", enabled=bool(rows))
         m.addSeparator()
-        self._act(m, "Quitar", pp.remove_selected, "Del", enabled=bool(rows))
-        self._act(m, "Recortar", pp.crop_selected, "Shift+Del", enabled=bool(rows))
-        self._act(m, "Vaciar lista", self.clear_playlist, "Ctrl+Del")
+        self._act(m, tr("Quitar"), pp.remove_selected, "Del", enabled=bool(rows))
+        self._act(m, tr("Recortar"), pp.crop_selected, "Shift+Del", enabled=bool(rows))
+        self._act(m, tr("Vaciar lista"), self.clear_playlist, "Ctrl+Del")
         m.addSeparator()
-        self._act(m, "Seleccionar todo", pp.select_all, "Ctrl+A")
-        self._act(m, "Invertir selección", pp.invert_selection, "Ctrl+I")
+        self._act(m, tr("Seleccionar todo"), pp.select_all, "Ctrl+A")
+        self._act(m, tr("Invertir selección"), pp.invert_selection, "Ctrl+I")
         m.addSeparator()
-        sub = m.addMenu("Enviar a lista guardada")
+        sub = m.addMenu(tr("Enviar a lista guardada"))
         for name in self.player.stored_playlists():
             self._act(sub, name, lambda n=name: self._send_to_playlist(n, rows))
-        self._act(sub, "Nueva lista…", lambda: self._send_to_new_playlist(rows))
+        self._act(sub, tr("Nueva lista…"), lambda: self._send_to_new_playlist(rows))
         m.addMenu(self.build_sort_menu(m))
         self._last_menu = m
         m.popup(gp)
@@ -1541,12 +1708,12 @@ class ZebampApp:
         self.player.conn.batch(cmds)
 
     def _send_to_new_playlist(self, rows):
-        name, ok = QInputDialog.getText(None, "Nueva lista guardada", "Nombre:")
+        name, ok = QInputDialog.getText(None, tr("Nueva lista guardada"), tr("Nombre:"))
         if ok and name.strip():
             self._send_to_playlist(name.strip(), rows)
 
     def build_sort_menu(self, parent) -> QMenu:
-        m = QMenu("Ordenar", parent)
+        m = QMenu(tr("Ordenar"), parent)
         pl = self.player
 
         def k_title(s):
@@ -1567,13 +1734,13 @@ class ZebampApp:
             return (str(first(s.get("albumartist") or s.get("artist"))).lower(),
                     str(first(s.get("date"))), str(first(s.get("album"))).lower(),
                     num(s.get("disc")), num(s.get("track")))
-        self._act(m, "Ordenar por título", lambda: pl.sort_queue(k_title))
-        self._act(m, "Ordenar por nombre de archivo", lambda: pl.sort_queue(k_file))
-        self._act(m, "Ordenar por ruta y archivo", lambda: pl.sort_queue(k_path))
-        self._act(m, "Ordenar por artista / álbum / pista", lambda: pl.sort_queue(k_album))
+        self._act(m, tr("Ordenar por título"), lambda: pl.sort_queue(k_title))
+        self._act(m, tr("Ordenar por nombre de archivo"), lambda: pl.sort_queue(k_file))
+        self._act(m, tr("Ordenar por ruta y archivo"), lambda: pl.sort_queue(k_path))
+        self._act(m, tr("Ordenar por artista / álbum / pista"), lambda: pl.sort_queue(k_album))
         m.addSeparator()
-        self._act(m, "Invertir lista", pl.reverse_queue)
-        self._act(m, "Mezclar lista", pl.randomize)
+        self._act(m, tr("Invertir lista"), pl.reverse_queue)
+        self._act(m, tr("Mezclar lista"), pl.randomize)
         return m
 
     def show_sort_menu(self, gp):
@@ -1582,8 +1749,8 @@ class ZebampApp:
 
     def show_remove_misc_menu(self, gp):
         m = self._menu()
-        self._act(m, "Quitar duplicados", self.remove_duplicates)
-        self._act(m, "Quitar entradas que no existen", self.remove_dead)
+        self._act(m, tr("Quitar duplicados"), self.remove_duplicates)
+        self._act(m, tr("Quitar entradas que no existen"), self.remove_dead)
         self._last_menu = m
         m.popup(gp)
 
@@ -1611,13 +1778,13 @@ class ZebampApp:
 
     def show_misc_options_menu(self, gp):
         m = self._menu()
-        self._act(m, "Mostrar números de pista", lambda: self._toggle_cfg("pl_show_numbers"),
+        self._act(m, tr("Mostrar números de pista"), lambda: self._toggle_cfg("pl_show_numbers"),
                   checked=self.cfg["pl_show_numbers"])
-        fm = m.addMenu("Tamaño de letra")
+        fm = m.addMenu(tr("Tamaño de letra"))
         for size in (8, 9, 10, 11, 12, 14):
             self._act(fm, f"{size} px", lambda s=size: self._set_cfg("pl_font_size", s),
                       checked=self.cfg["pl_font_size"] == size)
-        self._act(m, "Seguir la canción actual", lambda: self._toggle_cfg("pl_follow"),
+        self._act(m, tr("Seguir la canción actual"), lambda: self._toggle_cfg("pl_follow"),
                   checked=self.cfg.get("pl_follow", True))
         self._last_menu = m
         m.popup(gp)
@@ -1638,7 +1805,7 @@ class ZebampApp:
 
     def show_eq_presets_menu(self, gp):
         m = self._menu()
-        lm = m.addMenu("Cargar")
+        lm = m.addMenu(tr("Cargar"))
         for name, p in self.eq.builtin.items():
             self._act(lm, name, lambda p=p: self.eq.load_preset(p))
         if self.eq.user_presets:
@@ -1646,18 +1813,18 @@ class ZebampApp:
             for name, p in sorted(self.eq.user_presets.items()):
                 self._act(lm, name, lambda p=p: self.eq.load_preset(p))
         lm.addSeparator()
-        self._act(lm, "Desde archivo .eqf…", self._import_eqf)
-        self._act(lm, "Restablecer (plano)", lambda: self.eq.load_preset({"bands": [0] * 10, "preamp": 0}))
-        sm = m.addMenu("Guardar")
-        self._act(sm, "Preajuste…", self._save_eq_preset)
-        self._act(sm, "A archivo .eqf…", self._export_eqf)
+        self._act(lm, tr("Desde archivo .eqf…"), self._import_eqf)
+        self._act(lm, tr("Restablecer (plano)"), lambda: self.eq.load_preset({"bands": [0] * 10, "preamp": 0}))
+        sm = m.addMenu(tr("Guardar"))
+        self._act(sm, tr("Preajuste…"), self._save_eq_preset)
+        self._act(sm, tr("A archivo .eqf…"), self._export_eqf)
         if self.eq.user_presets:
-            dm = m.addMenu("Borrar")
+            dm = m.addMenu(tr("Borrar"))
             for name in sorted(self.eq.user_presets):
                 self._act(dm, name, lambda n=name: self.eq.delete_preset(n))
         m.addSeparator()
         if self.pw is None:
-            a = m.addAction("Sin backend de PipeWire: el EQ no afecta al audio")
+            a = m.addAction(tr("Sin backend de PipeWire: el EQ no afecta al audio"))
             a.setEnabled(False)
         elif self.pw.status:
             a = m.addAction(self.pw.status)
@@ -1666,23 +1833,23 @@ class ZebampApp:
         m.popup(gp)
 
     def _save_eq_preset(self):
-        name, ok = QInputDialog.getText(None, "Guardar preajuste", "Nombre:")
+        name, ok = QInputDialog.getText(None, tr("Guardar preajuste"), tr("Nombre:"))
         if ok and name.strip():
             self.eq.save_preset(name.strip())
 
     def _import_eqf(self):
-        f, _ = QFileDialog.getOpenFileName(None, "Cargar preajustes", os.path.expanduser("~"),
-                                           "Preajustes de Winamp (*.eqf *.q1);;Todos (*)")
+        f, _ = QFileDialog.getOpenFileName(None, tr("Cargar preajustes"), os.path.expanduser("~"),
+                                           tr("Preajustes de Winamp (*.eqf *.q1);;Todos (*)"))
         if f:
             try:
                 n = self.eq.import_eqf(f)
-                self.main_panel.set_temp_text(f"{n} preajuste(s) importados")
+                self.main_panel.set_temp_text(tr("{0} preajuste(s) importados").format(n))
             except (OSError, ValueError) as e:
                 QMessageBox.warning(None, "Zebamp", str(e))
 
     def _export_eqf(self):
-        f, _ = QFileDialog.getSaveFileName(None, "Guardar preajuste", os.path.expanduser("~/zebamp.eqf"),
-                                           "Preajuste de Winamp (*.eqf)")
+        f, _ = QFileDialog.getSaveFileName(None, tr("Guardar preajuste"), os.path.expanduser("~/zebamp.eqf"),
+                                           tr("Preajuste de Winamp (*.eqf)"))
         if f:
             self.eq.export_eqf(f)
 

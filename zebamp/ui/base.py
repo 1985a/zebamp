@@ -16,6 +16,12 @@ from ..skin.classic import ClassicSkin
 SpriteFn = Callable[[], QPixmap | None]
 
 
+def dropped_files(urls) -> list[str]:
+    """Dropped QUrls as open_paths() wants them: local paths and stream URLs."""
+    files = [u.toLocalFile() if u.isLocalFile() else u.toString() for u in urls]
+    return [f for f in files if f]
+
+
 class Control:
     cursor_name: str | None = None
 
@@ -330,6 +336,7 @@ class SkinPanel(QWidget):
         self.setMouseTracking(True)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.setAcceptDrops(True)
         self._hover: Control | None = None
 
     # geometry --------------------------------------------------------
@@ -378,6 +385,19 @@ class SkinPanel(QWidget):
 
     def is_active(self) -> bool:
         return self.app.focused_panel is self and self.window().isActiveWindow()
+
+    # drag and drop ----------------------------------------------------
+    # Like Winamp: files dropped on a window are played (they replace the
+    # queue); skins are installed.  The playlist overrides this to insert.
+    def dragEnterEvent(self, ev):
+        if ev.mimeData().hasUrls():
+            ev.acceptProposedAction()
+
+    def dropEvent(self, ev):
+        files = dropped_files(ev.mimeData().urls())
+        if files:
+            self.app.open_paths(files)
+            ev.acceptProposedAction()
 
     def region_path(self):
         return None

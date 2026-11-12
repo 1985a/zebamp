@@ -18,6 +18,7 @@ from .. import __version__
 from ..config import SKIN_DIR
 from ..mpdconn import autodetect_address
 from ..player import fmt_time, song_duration, song_title
+from ..i18n import number, tr
 
 
 def _style(dlg: QDialog, app):
@@ -45,11 +46,11 @@ def install_skin(path: str) -> str | None:
 
 
 # ------------------------------------------------------------- file info
-TAGS = [("title", "Título"), ("artist", "Artista"), ("album", "Álbum"),
-        ("albumartist", "Artista del álbum"), ("date", "Año"), ("track", "Pista"),
-        ("disc", "Disco"), ("genre", "Género"), ("composer", "Compositor"),
-        ("performer", "Intérprete"), ("comment", "Comentario"), ("name", "Nombre"),
-        ("label", "Sello")]
+TAGS = [("title", tr("Título")), ("artist", tr("Artista")), ("album", tr("Álbum")),
+        ("albumartist", tr("Artista del álbum")), ("date", tr("Año")), ("track", tr("Pista")),
+        ("disc", tr("Disco")), ("genre", tr("Género")), ("composer", tr("Compositor")),
+        ("performer", tr("Intérprete")), ("comment", tr("Comentario")), ("name", tr("Nombre")),
+        ("label", tr("Sello"))]
 
 
 class FileInfoDialog(QDialog):
@@ -61,7 +62,7 @@ class FileInfoDialog(QDialog):
         _style(self, app)
         self.app = app
         self.song = song
-        self.setWindowTitle("Información del archivo")
+        self.setWindowTitle(tr("Información del archivo"))
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         from .. import tagedit
         self.tagedit = tagedit
@@ -83,14 +84,14 @@ class FileInfoDialog(QDialog):
         path = QLineEdit(self.path or f)
         path.setReadOnly(True)
         path.setMinimumWidth(400)
-        form.addRow("Archivo:", path)
+        form.addRow(tr("Archivo:"), path)
         if self.path:
             for key, label in tagedit.FIELDS:
                 e = QLineEdit(self.orig.get(key, ""))
                 e.textChanged.connect(self._dirty)
                 self.edits[key] = e
                 form.addRow(label + ":", e)
-            hint = QLabel("Varios valores: sepáralos con «;». Los cambios se escriben en el archivo.")
+            hint = QLabel(tr("Varios valores: sepáralos con «;». Los cambios se escriben en el archivo."))
             hint.setWordWrap(True)
             form.addRow(hint)
         else:
@@ -103,46 +104,48 @@ class FileInfoDialog(QDialog):
                     form.addRow(label + ":", e)
             why = getattr(self, "_why", "")
             if "://" in f:
-                why = "es una emisión por Internet"
+                why = tr("es una emisión por Internet")
             elif not tagedit.available():
-                why = "falta el módulo «mutagen» de Python"
+                why = tr("falta el módulo «mutagen» de Python")
             elif not why:
-                why = "el archivo no está en este equipo (MPD remoto)"
-            note = QLabel(f"Solo lectura: {why}.")
+                why = tr("el archivo no está en este equipo (MPD remoto)")
+            note = QLabel(tr("Solo lectura: {0}.").format(why))
             note.setWordWrap(True)
             form.addRow(note)
         st = app.player.status if song.get("id") == app.player.song.get("id") else {}
         info = []
         d = song_duration(song)
         if d:
-            info.append(f"Duración: {fmt_time(d)}")
+            info.append(tr("Duración: {0}").format(fmt_time(d)))
         if st.get("audio"):
             rate, bits, ch = app.player.audio
-            info.append(f"{rate} Hz, {bits or '?'} bits, {'mono' if ch == 1 else f'{ch} canales'}")
+            channels = "mono" if ch == 1 else tr("{0} canales").format(ch)
+            info.append(f"{rate} Hz, {bits or '?'} bits, {channels}")
         if st.get("bitrate"):
             info.append(f"{st.get('bitrate')} kbps")
         fmt = song.get("format")
         if fmt:
-            info.append(f"Formato: {fmt}")
+            info.append(tr("Formato: {0}").format(fmt))
         if song.get("last-modified"):
-            info.append(f"Modificado: {song['last-modified']}")
+            info.append(tr("Modificado: {0}").format(song['last-modified']))
         stats = getattr(app, "stats", None)
         if stats is not None and f:
             n = stats.playcount(f)
-            info.append(f"Valoración: {'★' * stats.rating(f) or '—'}   Escuchada: {n} {'vez' if n == 1 else 'veces'}")
+            heard = tr("Escuchada: 1 vez") if n == 1 else tr("Escuchada: {0} veces").format(n)
+            info.append(tr("Valoración: {0}").format("★" * stats.rating(f) or "—") + "   " + heard)
         form.addRow(QLabel("\n".join(info)))
         lay.addLayout(form)
         side = QVBoxLayout()
         self.art = QLabel()
         self.art.setFixedSize(220, 220)
         self.art.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.art.setText("(sin carátula)")
+        self.art.setText(tr("(sin carátula)"))
         side.addWidget(self.art)
         if self.path:
-            b1 = QPushButton("Cambiar carátula…")
+            b1 = QPushButton(tr("Cambiar carátula…"))
             b1.clicked.connect(self._pick_cover)
             side.addWidget(b1)
-            b2 = QPushButton("Quitar carátula incrustada")
+            b2 = QPushButton(tr("Quitar carátula incrustada"))
             b2.clicked.connect(self._drop_cover)
             side.addWidget(b2)
         side.addStretch(1)
@@ -152,7 +155,7 @@ class FileInfoDialog(QDialog):
         if self.path:
             bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Close)
             self.save_btn = bb.button(QDialogButtonBox.StandardButton.Save)
-            self.save_btn.setText("Guardar cambios…")
+            self.save_btn.setText(tr("Guardar cambios…"))
             self.save_btn.setEnabled(False)
             bb.accepted.connect(self._save)
         else:
@@ -174,8 +177,8 @@ class FileInfoDialog(QDialog):
             self.save_btn.setEnabled(bool(self._changes()) or self.new_cover is not None or self.remove_cover)
 
     def _pick_cover(self):
-        fn, _ = QFileDialog.getOpenFileName(self, "Elegir carátula", os.path.dirname(self.path or ""),
-                                            "Imágenes (*.jpg *.jpeg *.png)")
+        fn, _ = QFileDialog.getOpenFileName(self, tr("Elegir carátula"), os.path.dirname(self.path or ""),
+                                            tr("Imágenes (*.jpg *.jpeg *.png)"))
         if not fn:
             return
         try:
@@ -196,23 +199,24 @@ class FileInfoDialog(QDialog):
     def _drop_cover(self):
         self.new_cover, self.remove_cover = None, True
         self.art.setPixmap(QPixmap())
-        self.art.setText("(se quitará la carátula)")
+        self.art.setText(tr("(se quitará la carátula)"))
         self._dirty()
 
     def _save(self):
         changes = self._changes()
         labels = dict(self.tagedit.FIELDS)
-        lines = [f"• {labels[k]}: «{self.orig.get(k, '') or '—'}» → «{v or '(vacío)'}»"
+        empty = tr("(vacío)")
+        lines = [f"• {labels[k]}: «{self.orig.get(k, '') or '—'}» → «{v or empty}»"
                  for k, v in changes.items()]
         if self.new_cover is not None:
-            lines.append("• Carátula: se incrusta la imagen elegida")
+            lines.append(tr("• Carátula: se incrusta la imagen elegida"))
         if self.remove_cover:
-            lines.append("• Carátula: se quita la imagen incrustada")
+            lines.append(tr("• Carátula: se quita la imagen incrustada"))
         if not lines:
             return
-        msg = (f"Se modificará el archivo:\n{self.path}\n\n" + "\n".join(lines) +
-               "\n\n¿Guardar estos cambios?")
-        ok = QMessageBox.question(self, "Confirmar cambios", msg,
+        msg = (tr("Se modificará el archivo:\n{0}\n\n").format(self.path) + "\n".join(lines) +
+               tr("\n\n¿Guardar estos cambios?"))
+        ok = QMessageBox.question(self, tr("Confirmar cambios"), msg,
                                   QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel,
                                   QMessageBox.StandardButton.Cancel)
         if ok != QMessageBox.StandardButton.Save:
@@ -235,7 +239,7 @@ class FileInfoDialog(QDialog):
         self.orig.update(changes)
         self.new_cover, self.remove_cover = None, False
         self._dirty()
-        QMessageBox.information(self, "Guardado", "Cambios guardados. MPD está releyendo el archivo.")
+        QMessageBox.information(self, tr("Guardado"), tr("Cambios guardados. MPD está releyendo el archivo."))
 
     def _load_art(self, uri):
         app = self.app
@@ -270,11 +274,11 @@ class JumpToFileDialog(QDialog):
         super().__init__(None)
         _style(self, app)
         self.app = app
-        self.setWindowTitle("Saltar a archivo")
-        self.resize(520, 420)
+        self.setWindowTitle(tr("Saltar a archivo"))
+        self.resize(560, 520)
         lay = QVBoxLayout(self)
         self.edit = QLineEdit()
-        self.edit.setPlaceholderText("Escribe para buscar en la lista…")
+        self.edit.setPlaceholderText(tr("Escribe para buscar en la lista…"))
         self.edit.textChanged.connect(self._filter)
         self.edit.installEventFilter(self)
         lay.addWidget(self.edit)
@@ -282,8 +286,8 @@ class JumpToFileDialog(QDialog):
         self.list.itemActivated.connect(self._play)
         lay.addWidget(self.list)
         row = QHBoxLayout()
-        for text, fn in (("Reproducir", self._play), ("Encolar a continuación", self._queue_next),
-                         ("Cerrar", self.reject)):
+        for text, fn in ((tr("Reproducir"), self._play), (tr("Encolar a continuación"), self._queue_next),
+                         (tr("Cerrar"), self.reject)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, fn=fn: fn())
             row.addWidget(b)
@@ -335,7 +339,7 @@ class JumpToFileDialog(QDialog):
 
 
 class _ResultModel(QAbstractTableModel):
-    HEAD = ["Título", "Artista", "Álbum", "Duración"]
+    HEAD = [tr("Título"), tr("Artista"), tr("Álbum"), tr("Duración")]
 
     def __init__(self):
         super().__init__()
@@ -397,11 +401,11 @@ class SearchLibraryDialog(QDialog):
         _style(self, app)
         self.app = app
         self.index = app.library_index
-        self.setWindowTitle("Buscar canciones")
+        self.setWindowTitle(tr("Buscar canciones"))
         self.resize(820, 520)
         lay = QVBoxLayout(self)
         self.edit = QLineEdit()
-        self.edit.setPlaceholderText("Artista, título, álbum, género, archivo…  (sin importar tildes)")
+        self.edit.setPlaceholderText(tr("Artista, título, álbum, género, archivo…  (sin importar tildes)"))
         self.edit.setClearButtonEnabled(True)
         self.edit.installEventFilter(self)
         lay.addWidget(self.edit)
@@ -427,10 +431,10 @@ class SearchLibraryDialog(QDialog):
         self.status = QLabel("")
         lay.addWidget(self.status)
         row = QHBoxLayout()
-        for text, fn in (("Reproducir (Enter)", self._play),
-                         ("A continuación (Ctrl+Enter)", self._play_next),
-                         ("Añadir a la lista (Insert)", self._enqueue),
-                         ("Cerrar", self.reject)):
+        for text, fn in ((tr("Reproducir (Enter)"), self._play),
+                         (tr("A continuación (Ctrl+Enter)"), self._play_next),
+                         (tr("Añadir a la lista (Insert)"), self._enqueue),
+                         (tr("Cerrar"), self.reject)):
             b = QPushButton(text)
             b.setAutoDefault(False)
             b.clicked.connect(lambda _=False, fn=fn: fn())
@@ -449,11 +453,11 @@ class SearchLibraryDialog(QDialog):
 
     def _on_ready(self):
         if self.index.is_ready:
-            self.status.setText(f"{len(self.index.rows):,} canciones en la biblioteca.".replace(",", "."))
+            self.status.setText(tr("{0} canciones en la biblioteca.").format(number(len(self.index.rows))))
             if self.edit.text().strip():
                 self._search()
         else:
-            self.status.setText("Preparando el índice de la biblioteca…")
+            self.status.setText(tr("Preparando el índice de la biblioteca…"))
 
     @staticmethod
     def build_query(text: str, tag="any"):
@@ -481,9 +485,9 @@ class SearchLibraryDialog(QDialog):
         if not text.strip():
             self._on_ready()
         else:
-            self.status.setText("Sin resultados." if not n else
-                                f"{n:,} canciones ({ms:.0f} ms). ".replace(",", ".") +
-                                "Enter: reproducir · Ctrl+Enter: a continuación · Insert: añadir")
+            self.status.setText(tr("Sin resultados.") if not n else
+                                tr("{0} canciones ({1:.0f} ms). ").format(number(n), ms) +
+                                tr("Enter: reproducir · Ctrl+Enter: a continuación · Insert: añadir"))
 
     def _uris(self):
         rows = sorted({i.row() for i in self.list.selectionModel().selectedRows()})
@@ -508,7 +512,7 @@ class SearchLibraryDialog(QDialog):
         uris = self._uris()
         if uris:
             self.app.player.add(uris)
-            self.status.setText(f"Añadidas {len(uris)} a la lista.")
+            self.status.setText(tr("Añadidas {0} a la lista.").format(len(uris)))
 
     def eventFilter(self, obj, ev):
         if ev.type() == ev.Type.KeyPress:
@@ -540,13 +544,13 @@ class SearchLibraryDialog(QDialog):
 # ---------------------------------------------------------- playlists
 def save_playlist_dialog(app):
     names = app.player.stored_playlists()
-    name, ok = QInputDialog.getItem(None, "Guardar lista", "Nombre de la lista en MPD:",
+    name, ok = QInputDialog.getItem(None, tr("Guardar lista"), tr("Nombre de la lista en MPD:"),
                                     names or [""], 0, True)
     name = (name or "").strip()
     if not ok or not name:
         return
     if name in names:
-        r = QMessageBox.question(None, "Guardar lista", f"¿Sobrescribir «{name}»?")
+        r = QMessageBox.question(None, tr("Guardar lista"), tr("¿Sobrescribir «{0}»?").format(name))
         if r != QMessageBox.StandardButton.Yes:
             return
     if not app.player.save_playlist(name):
@@ -558,16 +562,16 @@ class PlaylistsDialog(QDialog):
         super().__init__(None)
         _style(self, app)
         self.app = app
-        self.setWindowTitle("Listas guardadas en MPD")
+        self.setWindowTitle(tr("Listas guardadas en MPD"))
         self.resize(380, 420)
         lay = QVBoxLayout(self)
         self.list = QListWidget()
         self.list.itemActivated.connect(lambda *_: self._load(True))
         lay.addWidget(self.list)
         row = QHBoxLayout()
-        for text, fn in (("Cargar", lambda: self._load(True)), ("Añadir", lambda: self._load(False)),
-                         ("Borrar", self._delete), ("Renombrar", self._rename),
-                         ("Importar .m3u…", self._import), ("Cerrar", self.reject)):
+        for text, fn in ((tr("Cargar"), lambda: self._load(True)), (tr("Añadir"), lambda: self._load(False)),
+                         (tr("Borrar"), self._delete), (tr("Renombrar"), self._rename),
+                         (tr("Importar .m3u…"), self._import), (tr("Cerrar"), self.reject)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, fn=fn: fn())
             row.addWidget(b)
@@ -593,7 +597,7 @@ class PlaylistsDialog(QDialog):
 
     def _delete(self):
         n = self._name()
-        if n and QMessageBox.question(self, "Borrar", f"¿Borrar la lista «{n}» de MPD?") == \
+        if n and QMessageBox.question(self, tr("Borrar"), tr("¿Borrar la lista «{0}» de MPD?").format(n)) == \
                 QMessageBox.StandardButton.Yes:
             self.app.player.delete_playlist(n)
             self._refresh()
@@ -602,14 +606,14 @@ class PlaylistsDialog(QDialog):
         n = self._name()
         if not n:
             return
-        new, ok = QInputDialog.getText(self, "Renombrar", "Nuevo nombre:", text=n)
+        new, ok = QInputDialog.getText(self, tr("Renombrar"), tr("Nuevo nombre:"), text=n)
         if ok and new.strip() and new.strip() != n:
             self.app.player.conn.call("rename", n, new.strip())
             self._refresh()
 
     def _import(self):
-        f, _ = QFileDialog.getOpenFileName(self, "Importar lista", os.path.expanduser("~"),
-                                           "Listas (*.m3u *.m3u8 *.pls);;Todos (*)")
+        f, _ = QFileDialog.getOpenFileName(self, tr("Importar lista"), os.path.expanduser("~"),
+                                           tr("Listas (*.m3u *.m3u8 *.pls);;Todos (*)"))
         if not f:
             return
         from ..player import read_playlist_file
@@ -655,7 +659,7 @@ class SkinBrowser(QDialog):
         super().__init__(None)
         _style(self, app)
         self.app = app
-        self.setWindowTitle("Explorador de skins")
+        self.setWindowTitle(tr("Explorador de skins"))
         self.resize(640, 460)
         lay = QHBoxLayout(self)
         left = QVBoxLayout()
@@ -664,8 +668,8 @@ class SkinBrowser(QDialog):
         self.list.itemActivated.connect(lambda *_: self._apply())
         left.addWidget(self.list)
         row = QHBoxLayout()
-        for text, fn in (("Añadir skin…", self._add), ("Borrar", self._delete),
-                         ("Carpeta", self._folder)):
+        for text, fn in ((tr("Añadir skin…"), self._add), (tr("Borrar"), self._delete),
+                         (tr("Carpeta"), self._folder)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, fn=fn: fn())
             row.addWidget(b)
@@ -680,14 +684,14 @@ class SkinBrowser(QDialog):
         self.info.setWordWrap(True)
         right.addWidget(self.info)
         right.addStretch(1)
-        self.random_cb = QCheckBox("Skin aleatorio al iniciar")
+        self.random_cb = QCheckBox(tr("Skin aleatorio al iniciar"))
         self.random_cb.setChecked(bool(app.cfg.get("random_skin", False)))
         self.random_cb.toggled.connect(self._random)
         right.addWidget(self.random_cb)
         bb = QDialogButtonBox()
-        apply_b = bb.addButton("Aplicar", QDialogButtonBox.ButtonRole.AcceptRole)
+        apply_b = bb.addButton(tr("Aplicar"), QDialogButtonBox.ButtonRole.AcceptRole)
         apply_b.clicked.connect(self._apply)
-        close_b = bb.addButton("Cerrar", QDialogButtonBox.ButtonRole.RejectRole)
+        close_b = bb.addButton(tr("Cerrar"), QDialogButtonBox.ButtonRole.RejectRole)
         close_b.clicked.connect(self.reject)
         right.addWidget(bb)
         lay.addLayout(right, 2)
@@ -695,14 +699,14 @@ class SkinBrowser(QDialog):
 
     def _refresh(self):
         self.list.clear()
-        it = QListWidgetItem("<Zebamp (predeterminado)>")
+        it = QListWidgetItem(tr("<Zebamp (predeterminado)>"))
         it.setData(Qt.ItemDataRole.UserRole, "")
         self.list.addItem(it)
         cur = self.app.cfg["skin"]
         sel = 0
         for i, f in enumerate(self.app.skin_files(), start=1):
             it = QListWidgetItem(os.path.splitext(os.path.basename(f))[0] +
-                                 ("  [moderno]" if f.lower().endswith(".wal") else ""))
+                                 (tr("  [moderno]") if f.lower().endswith(".wal") else ""))
             it.setData(Qt.ItemDataRole.UserRole, f)
             self.list.addItem(it)
             if cur and os.path.abspath(f) == os.path.abspath(cur):
@@ -719,7 +723,7 @@ class SkinBrowser(QDialog):
             return
         if path == "":
             pm = self._builtin_preview()
-            self.info.setText("Skin original incluido con Zebamp.")
+            self.info.setText(tr("Skin original incluido con Zebamp."))
         elif path.lower().endswith(".wal") or (os.path.isdir(path) and \
                 os.path.exists(os.path.join(path, "skin.xml"))):
             from ..modern.skin import ModernSkin
@@ -730,8 +734,7 @@ class SkinBrowser(QDialog):
                 ms.vfs.close()
             except Exception:
                 pm = None
-            self.info.setText(path + "\n\nSkin moderno (Winamp 3/5): compatibilidad parcial "
-                              "con scripts MAKI.")
+            self.info.setText(path + tr("\n\nSkin moderno (Winamp 3/5): compatibilidad parcial con scripts MAKI."))
         else:
             pm = render_preview(self.app, path)
             self.info.setText(path)
@@ -739,7 +742,7 @@ class SkinBrowser(QDialog):
             self.preview.setPixmap(pm.scaled(550, 232, Qt.AspectRatioMode.KeepAspectRatio,
                                              Qt.TransformationMode.FastTransformation))
         else:
-            self.preview.setText("(sin vista previa)")
+            self.preview.setText(tr("(sin vista previa)"))
 
     def _builtin_preview(self):
         sk = self.app.base_skin
@@ -764,8 +767,8 @@ class SkinBrowser(QDialog):
             self.app.load_skin(path)
 
     def _add(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Añadir skins", os.path.expanduser("~/Downloads"),
-                                                "Skins de Winamp (*.wsz *.wal *.zip);;Todos (*)")
+        files, _ = QFileDialog.getOpenFileNames(self, tr("Añadir skins"), os.path.expanduser("~/Downloads"),
+                                                tr("Skins de Winamp (*.wsz *.wal *.zip);;Todos (*)"))
         for f in files:
             install_skin(f)
         self._refresh()
@@ -774,7 +777,7 @@ class SkinBrowser(QDialog):
         path = self._path()
         if not path or os.path.dirname(os.path.abspath(path)) != os.path.abspath(SKIN_DIR):
             return
-        if QMessageBox.question(self, "Borrar skin", f"¿Borrar {os.path.basename(path)}?") == \
+        if QMessageBox.question(self, tr("Borrar skin"), tr("¿Borrar {0}?").format(os.path.basename(path))) == \
                 QMessageBox.StandardButton.Yes:
             try:
                 if os.path.isdir(path):
@@ -802,8 +805,8 @@ class PreferencesDialog(QDialog):
         _style(self, app)
         self.app = app
         cfg = app.cfg
-        self.setWindowTitle("Preferencias de Zebamp")
-        self.resize(520, 420)
+        self.setWindowTitle(tr("Preferencias de Zebamp"))
+        self.resize(560, 520)
         lay = QVBoxLayout(self)
         tabs = QTabWidget()
         lay.addWidget(tabs)
@@ -812,23 +815,23 @@ class PreferencesDialog(QDialog):
         w = QWidget()
         f = QFormLayout(w)
         self.host = QLineEdit(cfg["mpd_host"])
-        self.host.setPlaceholderText(f"automático ({app.player.conn.addr.describe()})")
+        self.host.setPlaceholderText(tr("automático ({0})").format(app.player.conn.addr.describe()))
         self.port = QSpinBox()
         self.port.setRange(1, 65535)
         self.port.setValue(int(cfg["mpd_port"] or 6600))
         self.password = QLineEdit(cfg["mpd_password"])
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
-        f.addRow("Servidor o socket:", self.host)
-        f.addRow("Puerto:", self.port)
-        f.addRow("Contraseña:", self.password)
-        st = QLabel("Conectado" if app.player.connected else
-                    f"Sin conexión: {app.player.conn.last_error or '—'}")
-        f.addRow("Estado:", st)
+        f.addRow(tr("Servidor o socket:"), self.host)
+        f.addRow(tr("Puerto:"), self.port)
+        f.addRow(tr("Contraseña:"), self.password)
+        st = QLabel(tr("Conectado") if app.player.connected else
+                    tr("Sin conexión: {0}").format(app.player.conn.last_error or '—'))
+        f.addRow(tr("Estado:"), st)
         stats = app.player.conn.call("stats", default={}) or {}
         if stats:
-            f.addRow("Biblioteca:", QLabel(f"{stats.get('artists', '?')} artistas, "
-                                           f"{stats.get('albums', '?')} álbumes, "
-                                           f"{stats.get('songs', '?')} canciones"))
+            totals = tr("{0} artistas, {1} álbumes, {2} canciones").format(
+                stats.get("artists", "?"), stats.get("albums", "?"), stats.get("songs", "?"))
+            f.addRow(tr("Biblioteca:"), QLabel(totals))
         tabs.addTab(w, "MPD")
 
         # Display
@@ -837,35 +840,35 @@ class PreferencesDialog(QDialog):
         self.scale = QComboBox()
         self.scale.addItems(["1x", "2x", "3x"])
         self.scale.setCurrentIndex(app.scale - 1)
-        f.addRow("Tamaño:", self.scale)
-        self.bitmap = QCheckBox("Usar la fuente del skin para el título")
+        f.addRow(tr("Tamaño:"), self.scale)
+        self.bitmap = QCheckBox(tr("Usar la fuente del skin para el título"))
         self.bitmap.setChecked(cfg["use_bitmap_font"])
         f.addRow(self.bitmap)
-        self.scroll = QCheckBox("Desplazar el título")
+        self.scroll = QCheckBox(tr("Desplazar el título"))
         self.scroll.setChecked(cfg["marquee_scroll"])
         f.addRow(self.scroll)
         self.speed = QComboBox()
-        self.speed.addItems(["Lento", "Normal", "Rápido"])
+        self.speed.addItems([tr("Lento"), "Normal", tr("Rápido")])
         self.speed.setCurrentIndex(int(cfg["marquee_speed"]))
-        f.addRow("Velocidad del título:", self.speed)
+        f.addRow(tr("Velocidad del título:"), self.speed)
         self.plfont = QSpinBox()
         self.plfont.setRange(7, 20)
         self.plfont.setValue(int(cfg["pl_font_size"]))
-        f.addRow("Letra de la lista (px):", self.plfont)
-        tabs.addTab(w, "Pantalla")
+        f.addRow(tr("Letra de la lista (px):"), self.plfont)
+        tabs.addTab(w, tr("Pantalla"))
 
         # Vis
         w = QWidget()
         f = QFormLayout(w)
         self.fifo = QLineEdit(cfg["vis_fifo"])
-        self.fifo.setPlaceholderText("automático (salida fifo de mpd.conf)")
+        self.fifo.setPlaceholderText(tr("automático (salida fifo de mpd.conf)"))
         self.fifo_fmt = QLineEdit(cfg["vis_fifo_format"])
-        self.fifo_fmt.setPlaceholderText("automático, p. ej. 44100:16:2")
-        f.addRow("FIFO de MPD:", self.fifo)
-        f.addRow("Formato:", self.fifo_fmt)
-        f.addRow(QLabel("Visualización: " + ("recibiendo datos" if app.vis.available
-                                             else "no hay salida fifo configurada")))
-        tabs.addTab(w, "Visualización")
+        self.fifo_fmt.setPlaceholderText(tr("automático, p. ej. 44100:16:2"))
+        f.addRow(tr("FIFO de MPD:"), self.fifo)
+        f.addRow(tr("Formato:"), self.fifo_fmt)
+        f.addRow(QLabel(tr("Visualización: ") + (tr("recibiendo datos") if app.vis.available
+                                             else tr("no hay salida fifo configurada"))))
+        tabs.addTab(w, tr("Visualización"))
 
         # EQ
         w = QWidget()
@@ -874,16 +877,16 @@ class PreferencesDialog(QDialog):
         self.eq_backend = QComboBox()
         self.eq_backend.addItems(["pipewire", "none"])
         self.eq_backend.setCurrentText(cfg["eq_backend"])
-        f.addRow("Motor del ecualizador:", self.eq_backend)
-        f.addRow(QLabel("PipeWire disponible" if pw.available() else "PipeWire no encontrado"))
-        self.bal = QCheckBox("Aplicar el balance al stream de MPD en PipeWire")
+        f.addRow(tr("Motor del ecualizador:"), self.eq_backend)
+        f.addRow(QLabel(tr("PipeWire disponible") if pw.available() else tr("PipeWire no encontrado")))
+        self.bal = QCheckBox(tr("Aplicar el balance al stream de MPD en PipeWire"))
         self.bal.setChecked(cfg["balance_backend"])
         f.addRow(self.bal)
-        note = QLabel("El EQ inserta un filtro «Zebamp EQ» entre MPD y la salida que ya usaba. "
-                      "Al apagarlo o cerrar Zebamp, MPD vuelve a su salida original.")
+        note = QLabel(tr("El EQ inserta un filtro «Zebamp EQ» entre MPD y la salida que ya usaba. Al "
+                         "apagarlo o cerrar Zebamp, MPD vuelve a su salida original."))
         note.setWordWrap(True)
         f.addRow(note)
-        tabs.addTab(w, "Ecualizador")
+        tabs.addTab(w, tr("Ecualizador"))
 
         # MPD audio options (live server settings)
         w = QWidget()
@@ -895,9 +898,9 @@ class PreferencesDialog(QDialog):
         self.xfade.setRange(0, 30)
         self.xfade.setSuffix(" s")
         self.xfade.setValue(int(float(st.get("xfade", 0) or 0)))
-        f.addRow("Fundido entre canciones:", self.xfade)
-        self.mixramp_on = QCheckBox("Usar MixRamp (fundido según el volumen real, "
-                                    "si las canciones tienen etiquetas MixRamp)")
+        f.addRow(tr("Fundido entre canciones:"), self.xfade)
+        self.mixramp_on = QCheckBox(tr("Usar MixRamp (fundido según el volumen real, si las canciones "
+                                       "tienen etiquetas MixRamp)"))
         mdelay = str(st.get("mixrampdelay", "nan"))
         self.mixramp_on.setChecked(mdelay.lower() not in ("nan", "", "0"))
         f.addRow(self.mixramp_on)
@@ -908,7 +911,7 @@ class PreferencesDialog(QDialog):
             self.mixdb.setValue(float(st.get("mixrampdb", -17)))
         except ValueError:
             self.mixdb.setValue(-17.0)
-        f.addRow("Umbral MixRamp:", self.mixdb)
+        f.addRow(tr("Umbral MixRamp:"), self.mixdb)
         self.mixdelay = QDoubleSpinBox()
         self.mixdelay.setRange(0.0, 30.0)
         self.mixdelay.setSuffix(" s")
@@ -916,10 +919,10 @@ class PreferencesDialog(QDialog):
             self.mixdelay.setValue(float(mdelay) if self.mixramp_on.isChecked() else 2.0)
         except ValueError:
             self.mixdelay.setValue(2.0)
-        f.addRow("Retardo MixRamp:", self.mixdelay)
+        f.addRow(tr("Retardo MixRamp:"), self.mixdelay)
         self.rg = QComboBox()
-        rg_modes = [("off", "Desactivado"), ("track", "Por pista"), ("album", "Por álbum"),
-                    ("auto", "Automático (álbum en modo aleatorio desactivado)")]
+        rg_modes = [("off", tr("Desactivado")), ("track", tr("Por pista")), ("album", tr("Por álbum")),
+                    ("auto", tr("Automático (álbum en modo aleatorio desactivado)"))]
         for k, label in rg_modes:
             self.rg.addItem(label, k)
         rg = conn.call("replay_gain_status", default="off") or "off"
@@ -927,13 +930,17 @@ class PreferencesDialog(QDialog):
             rg = rg.get("replay_gain_mode", "off")
         rg = str(rg).strip()
         self.rg.setCurrentIndex(max(0, [k for k, _ in rg_modes].index(rg) if rg in [k for k, _ in rg_modes] else 0))
-        f.addRow("ReplayGain (igualar volumen):", self.rg)
-        note = QLabel("Estas opciones se guardan en MPD y afectan a todos sus clientes (ncmpcpp incluido).")
+        f.addRow(tr("ReplayGain (igualar volumen):"), self.rg)
+        note = QLabel(tr("Estas opciones se guardan en MPD y afectan a todos sus clientes (ncmpcpp incluido)."))
         note.setWordWrap(True)
         f.addRow(note)
         self._audio_initial = (self.xfade.value(), self.mixramp_on.isChecked(), self.mixdb.value(),
                                self.mixdelay.value(), self.rg.currentData())
-        tabs.addTab(w, "Audio (MPD)")
+        tabs.addTab(w, tr("Audio (MPD)"))
+
+        from .scrobble_prefs import ScrobblePage
+        self.scrobble = ScrobblePage(app)
+        tabs.addTab(self.scrobble, "Scrobbling")
 
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         bb.accepted.connect(self._save)
@@ -956,7 +963,9 @@ class PreferencesDialog(QDialog):
         cfg["vis_fifo_format"] = self.fifo_fmt.text().strip()
         cfg["eq_backend"] = self.eq_backend.currentText()
         cfg["balance_backend"] = self.bal.isChecked()
+        self.scrobble.save(cfg)
         cfg.save()
+        app.scrobbler.configure()
         audio = (self.xfade.value(), self.mixramp_on.isChecked(), self.mixdb.value(),
                  self.mixdelay.value(), self.rg.currentData())
         if audio != self._audio_initial:
@@ -966,7 +975,9 @@ class PreferencesDialog(QDialog):
             c.call("mixrampdelay", f"{self.mixdelay.value():.1f}" if self.mixramp_on.isChecked() else "nan")
             c.call("replay_gain_mode", self.rg.currentData())
         if conn_changed:
-            app.player.set_address(autodetect_address(host, port, pwd))
+            cfg["mpd_profile"] = ""         # typed by hand: no longer a saved profile
+            cfg.save()
+            app.connect_to(autodetect_address(host, port, pwd))
         if fifo_changed:
             app.vis.configure()
         app.main_panel.marquee.set_speed(cfg["marquee_speed"])
@@ -985,7 +996,7 @@ class BookmarksDialog(QDialog):
         super().__init__(None)
         _style(self, app)
         self.app = app
-        self.setWindowTitle("Marcadores")
+        self.setWindowTitle(tr("Marcadores"))
         self.resize(560, 400)
         lay = QVBoxLayout(self)
         self.list = QListWidget()
@@ -993,9 +1004,9 @@ class BookmarksDialog(QDialog):
         self.list.itemDoubleClicked.connect(lambda it: self._play())
         lay.addWidget(self.list)
         row = QHBoxLayout()
-        for text, fn in (("Reproducir", self._play), ("Subir", lambda: self._move(-1)),
-                         ("Bajar", lambda: self._move(1)), ("Quitar", self._remove),
-                         ("Cerrar", self.accept)):
+        for text, fn in ((tr("Reproducir"), self._play), (tr("Subir"), lambda: self._move(-1)),
+                         (tr("Bajar"), lambda: self._move(1)), (tr("Quitar"), self._remove),
+                         (tr("Cerrar"), self.accept)):
             b = QPushButton(text)
             b.clicked.connect(lambda _=False, fn=fn: fn())
             row.addWidget(b)
@@ -1046,10 +1057,8 @@ class BookmarksDialog(QDialog):
 
 
 def about_dialog(app):
-    QMessageBox.about(None, "Acerca de Zebamp",
-                      f"<b>Zebamp {__version__}</b><br>"
-                      "Reproductor estilo Winamp para MPD.<br><br>"
-                      "Compatible con skins clásicos (.wsz) y modernos (.wal).<br>"
-                      "Winamp es una marca de sus respectivos propietarios; "
-                      "Zebamp no está afiliado a ella.<br><br>"
-                      f"MPD: {app.player.conn.addr.describe()}")
+    QMessageBox.about(None, tr("Acerca de Zebamp"),
+                      tr("<b>Zebamp {0}</b><br>Reproductor estilo Winamp para MPD.<br><br>Compatible "
+                         "con skins clásicos (.wsz) y modernos (.wal).<br>Winamp es una marca de sus "
+                         "respectivos propietarios; Zebamp no está afiliado a ella.<br><br>MPD: {1}"
+                         ).format(__version__, app.player.conn.addr.describe()))

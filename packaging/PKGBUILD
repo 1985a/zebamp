@@ -1,0 +1,51 @@
+# Maintainer: Wagner <21690110+1985a@users.noreply.github.com>
+#
+# Arch Linux package for Zebamp, built from the main branch.
+#   cd packaging && makepkg -si
+pkgname=zebamp-git
+pkgver=1.0.0rc1.r0.g0000000
+pkgrel=1
+pkgdesc="Winamp-style client for MPD with classic and modern skins"
+arch=('any')
+url="https://github.com/1985a/zebamp"
+license=('GPL-3.0-or-later')
+depends=('python' 'pyside6' 'python-mpd2' 'python-numpy' 'python-mutagen')
+makedepends=('git' 'python-build' 'python-installer' 'python-setuptools' 'python-wheel')
+checkdepends=('mpd' 'mpc')
+optdepends=('mpd: a local music server to control'
+            'python-dbus: media keys, playerctl and waybar (MPRIS)'
+            'pipewire: equalizer and visualisation without a fifo'
+            'projectm: MilkDrop visualisation'
+            'libnotify: song change notifications'
+            'gcc: builds the MilkDrop bridge on first use')
+provides=('zebamp')
+conflicts=('zebamp')
+source=("$pkgname::git+https://github.com/1985a/zebamp.git#branch=main")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$pkgname"
+  # v1.0.0rc1-5-gabc1234 -> 1.0.0rc1.r5.gabc1234
+  git describe --long --tags --abbrev=7 | sed 's/^v//; s/-\([0-9]*\)-g/.r\1.g/'
+}
+
+build() {
+  cd "$pkgname"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "$pkgname"
+  # the tests start their own MPD in a temporary folder and draw off screen
+  QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests
+}
+
+package() {
+  cd "$pkgname"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+  install -Dm644 packaging/zebamp.desktop "$pkgdir/usr/share/applications/zebamp.desktop"
+  install -Dm644 packaging/zebamp.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/zebamp.png"
+  install -Dm644 packaging/zebamp-mime.xml "$pkgdir/usr/share/mime/packages/zebamp.xml"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/zebamp/README.md"
+  install -Dm644 THIRD_PARTY_NOTICES.md "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
+}

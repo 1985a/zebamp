@@ -26,6 +26,7 @@ LOCAL = os.path.join(DATA_DIR, "stats.json")
 
 class Stats(QObject):
     changed = Signal(str)       # uri
+    played = Signal(dict, int)  # song counted as played, unix time it started
 
     def __init__(self, player):
         super().__init__()
@@ -174,6 +175,7 @@ class Stats(QObject):
             uri = self._cur
             if "://" in uri:
                 return
+            self.played.emit(dict(self.pl.song or {}), int(time.time() - self._played))
             self.counts[uri] = self.counts.get(uri, 0) + 1
             self.last[uri] = int(time.time())
             self._store(uri, "playCount", self.counts[uri])

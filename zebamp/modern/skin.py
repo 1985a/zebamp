@@ -10,6 +10,7 @@ from PySide6.QtCore import QRect
 from PySide6.QtGui import QColor, QFontDatabase, QImage, QPixmap
 
 from .xmlparse import Node, parse
+from ..i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -331,7 +332,7 @@ class ModernSkin:
             elif t in ("bitmap", "color", "bitmapfont", "truetypefont"):
                 self._collect_elements(Node("elements", children=[c]))
             elif t == "gammaset":
-                name = c.get("id") or f"Tema {len(self.gammasets) + 1}"
+                name = c.get("id") or tr("Tema {0}").format(len(self.gammasets) + 1)
                 groups = {}
                 for g in c.children:
                     if g.tag != "gammagroup":

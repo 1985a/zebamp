@@ -20,6 +20,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
+from .i18n import tr
 
 # [mm:ss], [mm:ss.xx], [mm:ss:xx] (some editors use ':' for hundredths)
 _STAMP = re.compile(r"\[(\d+):(\d{1,2})(?:[.:](\d{1,3}))?\]")
@@ -157,7 +158,7 @@ class Timing:
     def shift(self, seconds: float):
         """Manual nudge: positive shows the lyrics later."""
         self.offset -= seconds
-        self.reason = "ajuste manual"
+        self.reason = tr("ajuste manual")
 
     def _fit(self):
         pts = self.anchors
@@ -172,11 +173,11 @@ class Timing:
             if 0.5 <= speed <= 2.0:                  # reject absurd fits (wrong taps)
                 self.speed = speed
                 self.offset = my - speed * mx
-                self.reason = f"sincronizada a mano ({n} puntos)"
+                self.reason = tr("sincronizada a mano ({0} puntos)").format(n)
                 return
         s, lt = pts[-1]
         self.offset = lt - self.speed * s
-        self.reason = "sincronizada a mano"
+        self.reason = tr("sincronizada a mano")
 
     def to_json(self) -> dict:
         return {"speed": self.speed, "offset": self.offset, "anchors": self.anchors}
@@ -184,7 +185,7 @@ class Timing:
     @classmethod
     def from_json(cls, d: dict) -> Timing:
         t = cls(float(d.get("speed", 1.0)), float(d.get("offset", 0.0)),
-                [tuple(a) for a in d.get("anchors", [])], "sincronización guardada")
+                [tuple(a) for a in d.get("anchors", [])], tr("sincronización guardada"))
         return t
 
 
@@ -200,11 +201,11 @@ def auto_timing(lyrics_duration: float | None, song_duration: float | None) -> T
     ratio = lyrics_duration / song_duration
     if 1.04 <= ratio <= 1.30 or 1 / 1.30 <= ratio <= 1 / 1.04:
         t.speed = ratio
-        t.reason = (f"la letra es de una versión de {_mmss(lyrics_duration)} y esta dura "
-                    f"{_mmss(song_duration)}: velocidad ajustada ×{ratio:.2f}")
+        t.reason = tr("la letra es de una versión de {0} y esta dura {1}: velocidad ajustada ×{2:.2f}").format(
+            _mmss(lyrics_duration), _mmss(song_duration), ratio)
     elif abs(lyrics_duration - song_duration) > 3:
-        t.reason = (f"la letra es de una versión de {_mmss(lyrics_duration)} (esta dura "
-                    f"{_mmss(song_duration)}); si va desfasada, Mayús+clic en una línea al oírla")
+        t.reason = (tr("la letra es de una versión de {0} (esta dura {1}); si va desfasada, Mayús+clic "
+                       "en una línea al oírla").format(_mmss(lyrics_duration), _mmss(song_duration)))
     return t
 
 
@@ -227,12 +228,12 @@ def _mmss(sec: float) -> str:
 
 
 # ------------------------------------------------------ what the UI shows
-NOTHING_PLAYING = "Nada sonando"
-SEARCHING = "Buscando la letra…"
-NOT_FOUND = "No se encontró la letra de esta canción"
-NO_INFO = "No se encontró la letra: la canción no tiene título"
-OFFLINE = "No se pudo buscar la letra: lrclib.net no responde"
-INSTRUMENTAL = "♪ Instrumental ♪"
+NOTHING_PLAYING = tr("Nada sonando")
+SEARCHING = tr("Buscando la letra…")
+NOT_FOUND = tr("No se encontró la letra de esta canción")
+NO_INFO = tr("No se encontró la letra: la canción no tiene título")
+OFFLINE = tr("No se pudo buscar la letra: lrclib.net no responde")
+INSTRUMENTAL = tr("♪ Instrumental ♪")
 
 
 @dataclass
@@ -275,7 +276,7 @@ class LyricsState:
             return self.status
         parts = [self.lyrics.source] if self.lyrics.source else []
         if not self.lyrics.synced:
-            parts.append("sin sincronizar")
+            parts.append(tr("sin sincronizar"))
         elif self.timing.reason:
             parts.append(self.timing.reason)
         return " · ".join(parts)

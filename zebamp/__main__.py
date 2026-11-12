@@ -8,31 +8,51 @@ import signal
 import sys
 
 
+def _language_argument(argv) -> str | None:
+    """`--lang xx` read by hand: the language is needed before the argument
+    parser (whose own help is translated) exists."""
+    args = list(sys.argv[1:] if argv is None else argv)
+    for i, arg in enumerate(args):
+        if arg == "--lang" and i + 1 < len(args):
+            return args[i + 1]
+        if arg.startswith("--lang="):
+            return arg.split("=", 1)[1]
+    return None
+
+
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="zebamp", description="Reproductor estilo Winamp para MPD")
-    ap.add_argument("--host", help="servidor MPD o ruta del socket")
+    from . import i18n
+    from .config import Config
+    # first of all: every module imported from here on already speaks the language
+    i18n.setup(_language_argument(argv) or Config()["language"])
+    tr = i18n.tr
+    ap = argparse.ArgumentParser(prog="zebamp", description=tr("Reproductor estilo Winamp para MPD"))
+    ap.add_argument("--host", help=tr("servidor MPD o ruta del socket"))
     ap.add_argument("--port", type=int, default=0)
-    ap.add_argument("--skin", help="skin .wsz/.wal a cargar")
+    ap.add_argument("--skin", help=tr("skin .wsz/.wal a cargar"))
+    ap.add_argument("--lang", choices=[*i18n.LANGUAGES, "auto"],
+                    help=tr("idioma de la interfaz solo para esta vez"))
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--buscar", "--search", dest="cmd", action="append_const", const="search",
-                    help="abrir la búsqueda de canciones (en la instancia abierta)")
+                    help=tr("abrir la búsqueda de canciones (en la instancia abierta)"))
     ap.add_argument("--saltar", "--jump", dest="cmd", action="append_const", const="jump",
-                    help="abrir «saltar a archivo»")
-    for name, alias, help_ in (("play", "reproducir", "reproducir"), ("pause", "pausa", "pausar"),
-                               ("toggle", "play-pausa", "reproducir/pausar"), ("stop", "detener", "detener"),
-                               ("next", "siguiente", "siguiente canción"),
-                               ("prev", "anterior", "canción anterior"),
-                               ("milkdrop", "milkdrop", "abrir/cerrar la visualización MilkDrop"),
-                               ("lyrics", "letras", "abrir la ventana de letras"),
-                               ("radio", "radio", "abrir la radio por Internet"),
-                               ("help", "ayuda", "abrir la ayuda de Zebamp")):
+                    help=tr("abrir «saltar a archivo»"))
+    for name, alias, help_ in (("play", "reproducir", tr("reproducir")), ("pause", "pausa", tr("pausar")),
+                               ("toggle", "play-pausa", tr("reproducir/pausar")),
+                               ("stop", "detener", tr("detener")),
+                               ("next", "siguiente", tr("siguiente canción")),
+                               ("prev", "anterior", tr("canción anterior")),
+                               ("milkdrop", "milkdrop", tr("abrir/cerrar la visualización MilkDrop")),
+                               ("lyrics", "letras", tr("abrir la ventana de letras")),
+                               ("radio", "radio", tr("abrir la radio por Internet")),
+                               ("help", "ayuda", tr("abrir la ayuda de Zebamp"))):
         flags = [f"--{alias}"]
         if name == "help":
             flags.append("--manual")        # --help is argparse's own
         elif name != alias:
             flags.append(f"--{name}")
         ap.add_argument(*flags, dest="cmd", action="append_const", const=name, help=help_)
-    ap.add_argument("files", nargs="*", help="archivos o URLs a reproducir")
+    ap.add_argument("files", nargs="*", help=tr("archivos o URLs a reproducir"))
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING,
                         format="%(levelname)s %(name)s: %(message)s")

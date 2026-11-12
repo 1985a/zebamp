@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import threading
 import time
+from ..i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -316,7 +317,7 @@ class PipeWireAudio:
                 with open(PIDFILE, "w") as fh:
                     fh.write(str(self.proc.pid))
             except OSError as e:
-                self.status = f"No se pudo iniciar PipeWire EQ: {e}"
+                self.status = tr("No se pudo iniciar PipeWire EQ: {0}").format(e)
                 log.warning(self.status)
                 return
         node = None
@@ -327,13 +328,13 @@ class PipeWireAudio:
                 break
             time.sleep(0.1)
         if node is None:
-            self.status = "El filtro EQ de PipeWire no apareció"
+            self.status = tr("El filtro EQ de PipeWire no apareció")
             log.warning(self.status)
             self._kill()
             return
         self._eq_node_id = node["id"]
         self.eq_on = True
-        self.status = f"EQ activo → {target or 'salida por defecto'}"
+        self.status = tr("EQ activo → {0}").format(target or tr("salida por defecto"))
         if existing is not None:
             self._set_gains()
         self._route(dump)
@@ -373,7 +374,7 @@ class PipeWireAudio:
             self._kill()
         self.eq_on = False
         self._eq_node_id = None
-        self.status = "EQ apagado"
+        self.status = tr("EQ apagado")
 
     def _detach(self):
         """Leave the running filter alone (no routing change at exit)."""

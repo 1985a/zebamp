@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QWidget
 
 from ..player import fmt_time, song_duration, song_title
 from .base import Area, Button, Control, SkinPanel, draw_bitmap_text
+from ..i18n import tr
 
 MIME_URIS = "application/x-zebamp-uris"
 
@@ -476,25 +477,25 @@ class PlaylistPanel(SkinPanel):
         a = self.app
         W, H = self.pw, self.ph
         menus = {
-            "add": ("BAR_ADD", 14, [("ADD_URL", a.add_url, "Añadir URL"),
-                                    ("ADD_DIR", a.add_dir, "Añadir carpeta"),
-                                    ("ADD_FILE", a.add_files, "Añadir archivos")]),
+            "add": ("BAR_ADD", 14, [("ADD_URL", a.add_url, tr("Añadir URL")),
+                                    ("ADD_DIR", a.add_dir, tr("Añadir carpeta")),
+                                    ("ADD_FILE", a.add_files, tr("Añadir archivos"))]),
             "rem": ("BAR_REM", 43, [("REM_MISC", lambda: a.show_remove_misc_menu(self._bottom_global(43)),
-                                     "Otras opciones de borrado"),
-                                    ("REM_ALL", a.clear_playlist, "Vaciar la lista"),
-                                    ("REM_CROP", self.crop_selected, "Recortar (dejar solo lo seleccionado)"),
-                                    ("REM_SEL", self.remove_selected, "Quitar seleccionados")]),
-            "sel": ("BAR_SEL", 72, [("SEL_INV", self.invert_selection, "Invertir selección"),
-                                    ("SEL_ZERO", self.select_none, "No seleccionar nada"),
-                                    ("SEL_ALL", self.select_all, "Seleccionar todo")]),
+                                     tr("Otras opciones de borrado")),
+                                    ("REM_ALL", a.clear_playlist, tr("Vaciar la lista")),
+                                    ("REM_CROP", self.crop_selected, tr("Recortar (dejar solo lo seleccionado)")),
+                                    ("REM_SEL", self.remove_selected, tr("Quitar seleccionados"))]),
+            "sel": ("BAR_SEL", 72, [("SEL_INV", self.invert_selection, tr("Invertir selección")),
+                                    ("SEL_ZERO", self.select_none, tr("No seleccionar nada")),
+                                    ("SEL_ALL", self.select_all, tr("Seleccionar todo"))]),
             "misc": ("BAR_MISC", 101, [("MISC_SORT", lambda: a.show_sort_menu(self._bottom_global(101)),
-                                        "Ordenar lista"),
-                                       ("MISC_INFO", a.show_file_info_selected, "Información del archivo"),
+                                        tr("Ordenar lista")),
+                                       ("MISC_INFO", a.show_file_info_selected, tr("Información del archivo")),
                                        ("MISC_OPTS", lambda: a.show_misc_options_menu(self._bottom_global(101)),
-                                        "Opciones")]),
-            "list": ("BAR_LIST", W - 44, [("LIST_NEW", a.new_playlist, "Nueva lista"),
-                                          ("LIST_SAVE", a.save_playlist, "Guardar lista"),
-                                          ("LIST_LOAD", a.load_playlist, "Cargar lista")]),
+                                        tr("Opciones"))]),
+            "list": ("BAR_LIST", W - 44, [("LIST_NEW", a.new_playlist, tr("Nueva lista")),
+                                          ("LIST_SAVE", a.save_playlist, tr("Guardar lista")),
+                                          ("LIST_LOAD", a.load_playlist, tr("Cargar lista"))]),
         }
         bar, x, items = menus[which]
         s = self.scale
@@ -554,7 +555,7 @@ class PlaylistPanel(SkinPanel):
             else:
                 self.remove_selected()
             return True
-        elif key == Qt.Key.Key_A and ctrl:
+        elif key == Qt.Key.Key_A and ctrl and not shift:
             self.select_all()
             return True
         elif key == Qt.Key.Key_I and ctrl:

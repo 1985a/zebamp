@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QToolTip
 from ..player import fmt_time, song_title
 from .base import (Area, Button, SkinPanel, Slider, Toggle, draw_bitmap_text,
                    ttf_font)
+from ..i18n import tr
 
 W, H = 275, 116
 MARQUEE = QRect(111, 24, 154, 12)
@@ -204,18 +205,18 @@ class MainPanel(SkinPanel):
                       on_double=a.toggle_main_shade, cursor="titlebar"))
         self.add(Button((6, 3, 9, 9), sk("TITLEBAR", "OPTIONS"),
                         on_click=lambda: a.show_main_menu(self._global(QPoint(6, 12))),
-                        cursor="mainmenu", tooltip="Menú principal"))
+                        cursor="mainmenu", tooltip=tr("Menú principal")))
         self.add(Button((244, 3, 9, 9), sk("TITLEBAR", "MINIMIZE"),
-                        on_click=a.minimize, cursor="min", tooltip="Minimizar"))
+                        on_click=a.minimize, cursor="min", tooltip=tr("Minimizar")))
         if self.shaded:
             self.add(Button((254, 3, 9, 9), sk("TITLEBAR", "UNSHADE"),
                             on_click=a.toggle_main_shade, cursor="wsnormal"))
         else:
             self.add(Button((254, 3, 9, 9), sk("TITLEBAR", "SHADE"),
                             on_click=a.toggle_main_shade, cursor="winbut",
-                            tooltip="Modo compacto"))
+                            tooltip=tr("Modo compacto")))
         self.add(Button((264, 3, 9, 9), sk("TITLEBAR", "CLOSE"),
-                        on_click=a.request_close, cursor="close", tooltip="Cerrar"))
+                        on_click=a.request_close, cursor="close", tooltip=tr("Cerrar")))
         if self.shaded:
             self._build_shade()
         else:
@@ -230,15 +231,15 @@ class MainPanel(SkinPanel):
               ("I", (10, 40, 8, 7), a.show_file_info, None),
               ("D", (10, 47, 8, 8), a.toggle_double_size, lambda: a.scale > 1),
               ("V", (10, 55, 8, 7), lambda: a.show_vis_menu(self._global(QPoint(18, 55))), None)]
-        tips = {"O": "Opciones", "A": "Siempre visible", "I": "Información del archivo",
-                "D": "Tamaño doble", "V": "Visualización"}
+        tips = {"O": tr("Opciones"), "A": tr("Siempre visible"), "I": tr("Información del archivo"),
+                "D": tr("Tamaño doble"), "V": tr("Visualización")}
         for letter, rect, cb_fn, active in cb:
             self.add(Button(rect, (lambda lt=letter: (None, self.skin.sprite("TITLEBAR", "CLUTTER_" + lt))),
                             on_click=cb_fn, draw_normal=False, active=active,
                             tooltip=tips[letter]))
         # time display (click toggles elapsed/remaining)
         self.add(Area((36, 26, 63, 13), on_click=a.toggle_time_mode,
-                      tooltip="Tiempo transcurrido / restante"))
+                      tooltip=tr("Tiempo transcurrido / restante")))
         # visualiser
         self.add(Area(VIS, on_click=a.cycle_vis_mode,
                       on_context=lambda gp: a.show_vis_menu(gp)))
@@ -268,12 +269,12 @@ class MainPanel(SkinPanel):
                         lambda: (self.skin.sprite("SHUFREP", "EQ"), self.skin.sprite("SHUFREP", "EQ_D"),
                                  self.skin.sprite("SHUFREP", "EQ_SEL"), self.skin.sprite("SHUFREP", "EQ_SEL_D")),
                         selected=lambda: a.cfg["show_eq"], on_click=a.toggle_eq_window,
-                        tooltip="Ecualizador (Alt+G)"))
+                        tooltip=tr("Ecualizador (Alt+G)")))
         self.add(Toggle((242, 58, 23, 12),
                         lambda: (self.skin.sprite("SHUFREP", "PL"), self.skin.sprite("SHUFREP", "PL_D"),
                                  self.skin.sprite("SHUFREP", "PL_SEL"), self.skin.sprite("SHUFREP", "PL_SEL_D")),
                         selected=lambda: a.cfg["show_playlist"], on_click=a.toggle_playlist_window,
-                        tooltip="Lista de reproducción (Alt+E)"))
+                        tooltip=tr("Lista de reproducción (Alt+E)")))
         # position bar
         self.add(Slider((16, 72, 248, 10), thumb_size=(29, 10),
                         background=lambda p, r, v: p.drawPixmap(r.topLeft(), self.skin.sprite("POSBAR", "POS_BG")),
@@ -282,12 +283,12 @@ class MainPanel(SkinPanel):
                         on_release=self._seek_release, show_thumb=self._can_seek,
                         cursor="posbar", wheel_step=0.02))
         # transport
-        cbs = [("PREV", (16, 88, 23, 18), pl.previous, "Anterior (Z)"),
-               ("PLAY", (39, 88, 23, 18), pl.play, "Reproducir (X)"),
-               ("PAUSE", (62, 88, 23, 18), pl.pause, "Pausa (C)"),
-               ("STOP", (85, 88, 23, 18), pl.stop, "Detener (V)"),
-               ("NEXT", (108, 88, 22, 18), pl.next, "Siguiente (B)"),
-               ("EJECT", (136, 89, 22, 16), a.open_files, "Abrir archivos (L)")]
+        cbs = [("PREV", (16, 88, 23, 18), pl.previous, tr("Anterior (Z)")),
+               ("PLAY", (39, 88, 23, 18), pl.play, tr("Reproducir (X)")),
+               ("PAUSE", (62, 88, 23, 18), pl.pause, tr("Pausa (C)")),
+               ("STOP", (85, 88, 23, 18), pl.stop, tr("Detener (V)")),
+               ("NEXT", (108, 88, 22, 18), pl.next, tr("Siguiente (B)")),
+               ("EJECT", (136, 89, 22, 16), a.open_files, tr("Abrir archivos (L)"))]
         for name, rect, fn, tip in cbs:
             self.add(Button(rect, (lambda n=name: (self.skin.sprite("CBUTTONS", n),
                                                    self.skin.sprite("CBUTTONS", n + "_D"))),
@@ -296,13 +297,13 @@ class MainPanel(SkinPanel):
                         lambda: tuple(self.skin.sprite("SHUFREP", n) for n in
                                       ("SHUFFLE", "SHUFFLE_D", "SHUFFLE_SEL", "SHUFFLE_SEL_D")),
                         selected=lambda: pl.random, on_click=pl.toggle_random,
-                        tooltip="Aleatorio (S)"))
+                        tooltip=tr("Aleatorio (S)")))
         self.add(Toggle((210, 89, 28, 15),
                         lambda: tuple(self.skin.sprite("SHUFREP", n) for n in
                                       ("REPEAT", "REPEAT_D", "REPEAT_SEL", "REPEAT_SEL_D")),
                         selected=lambda: pl.repeat, on_click=pl.toggle_repeat,
-                        tooltip="Repetir: no / todo / pista (R)"))
-        self.add(Area((253, 91, 13, 15), on_click=a.show_about, tooltip="Acerca de"))
+                        tooltip=tr("Repetir: no / todo / pista (R)")))
+        self.add(Area((253, 91, 13, 15), on_click=a.show_about, tooltip=tr("Acerca de")))
 
     def _build_shade(self):
         a = self.app
@@ -469,17 +470,17 @@ class MainPanel(SkinPanel):
         f = (pl.song or {}).get("file", "")
         ext = os.path.splitext(f.split("?")[0])[1].lstrip(".").upper()
         if "://" in f:
-            ext = "Radio/stream"
+            ext = tr("Radio/stream")
         if ext:
             parts.append(ext)
         if rate:
             parts.append(f"{rate / 1000:g} kHz")
         if ":f:" in a:
-            parts.append("32 bit flotante")
+            parts.append(tr("32 bit flotante"))
         elif bits:
             parts.append(f"{bits} bit")
         if ch:
-            parts.append({1: "mono", 2: "estéreo"}.get(ch, f"{ch} canales"))
+            parts.append({1: "mono", 2: tr("estéreo")}.get(ch, tr("{0} canales").format(ch)))
         br = pl.bitrate
         if br:
             parts.append(f"{br} kbps")
@@ -561,9 +562,9 @@ class MainPanel(SkinPanel):
         pl = self.app.player
         if not pl.connected:
             addr = pl.conn.addr.describe()
-            return f"MPD no conectado ({addr})"
+            return tr("MPD no conectado ({0})").format(addr)
         if not pl.song:
-            return "Zebamp para MPD"
+            return tr("Zebamp para MPD")
         pos = pl.current_pos
         title = song_title(pl.song)
         dur = pl.duration
@@ -595,7 +596,7 @@ class MainPanel(SkinPanel):
         pl = self.app.player
         d = pl.duration
         self._seek_preview = v * d
-        self.marquee.show_temp(f"Ir a: {fmt_time(v * d)}/{fmt_time(d)} ({int(v * 100)}%)", 0.6)
+        self.marquee.show_temp(tr("Ir a: {0}/{1} ({2}%)").format(fmt_time(v * d), fmt_time(d), int(v * 100)), 0.6)
         self.update_logical(QRect(36, 26, 66, 13))
 
     def _seek_release(self, v):
@@ -608,7 +609,7 @@ class MainPanel(SkinPanel):
     def _volume_change(self, v):
         vol = int(round(v * 100))
         self.app.player.set_volume(vol)
-        self.marquee.show_temp(f"Volumen: {vol}%")
+        self.marquee.show_temp(tr("Volumen: {0}%").format(vol))
         self.update_logical(QRect(107, 57, 68, 13))
 
     def _volume_release(self, v):
@@ -620,11 +621,11 @@ class MainPanel(SkinPanel):
             b = 0   # snap to centre like Winamp
         self.app.set_balance(b)
         if b == 0:
-            txt = "Balance: centro"
+            txt = tr("Balance: centro")
         elif b < 0:
-            txt = f"Balance: {-b}% izquierda"
+            txt = tr("Balance: {0}% izquierda").format(-b)
         else:
-            txt = f"Balance: {b}% derecha"
+            txt = tr("Balance: {0}% derecha").format(b)
         self.marquee.show_temp(txt)
         self.update_logical(QRect(177, 57, 38, 13))
 

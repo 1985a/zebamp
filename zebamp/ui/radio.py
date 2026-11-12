@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QDialog,
                                QVBoxLayout)
 
 from ..threads import http_json, run_bg
+from ..i18n import tr
 
 API = "https://all.api.radio-browser.info/json"
 ROLE = Qt.ItemDataRole.UserRole
@@ -20,26 +21,26 @@ class RadioDialog(QDialog):
     def __init__(self, app):
         super().__init__(None)
         self.app = app
-        self.setWindowTitle("Radio por Internet - Zebamp")
+        self.setWindowTitle(tr("Radio por Internet - Zebamp"))
         self.setPalette(getattr(app, "dialog_palette", self.palette()))
         self.resize(860, 540)
         lay = QVBoxLayout(self)
         top = QHBoxLayout()
         self.mode = QComboBox()
-        self.mode.addItems(["Nombre", "Género / etiqueta", "País", "Idioma",
-                            "Más escuchadas", "Más votadas", "Favoritas"])
+        self.mode.addItems([tr("Nombre"), tr("Género / etiqueta"), tr("País"), tr("Idioma"),
+                            tr("Más escuchadas"), tr("Más votadas"), tr("Favoritas")])
         self.mode.currentIndexChanged.connect(self._mode_changed)
         top.addWidget(self.mode)
         self.edit = QLineEdit()
-        self.edit.setPlaceholderText("Escribe y pulsa Enter (p. ej. jazz, rock, salsa, España, BBC…)")
+        self.edit.setPlaceholderText(tr("Escribe y pulsa Enter (p. ej. jazz, rock, salsa, España, BBC…)"))
         self.edit.returnPressed.connect(self.search)
         top.addWidget(self.edit, 1)
-        b = QPushButton("Buscar")
+        b = QPushButton(tr("Buscar"))
         b.clicked.connect(self.search)
         top.addWidget(b)
         lay.addLayout(top)
         self.list = QTreeWidget()
-        self.list.setHeaderLabels(["Emisora", "Género", "País", "Calidad", "Votos"])
+        self.list.setHeaderLabels([tr("Emisora"), tr("Género"), tr("País"), tr("Calidad"), tr("Votos")])
         self.list.setRootIsDecorated(False)
         self.list.setAlternatingRowColors(True)
         self.list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -52,8 +53,8 @@ class RadioDialog(QDialog):
         self.status = QLabel("")
         lay.addWidget(self.status)
         row = QHBoxLayout()
-        for text, fn in (("Escuchar", self.play), ("Añadir a la lista", self.enqueue),
-                         ("★ Favorita", self.toggle_fav), ("Cerrar", self.reject)):
+        for text, fn in ((tr("Escuchar"), self.play), (tr("Añadir a la lista"), self.enqueue),
+                         (tr("★ Favorita"), self.toggle_fav), (tr("Cerrar"), self.reject)):
             b = QPushButton(text)
             b.setAutoDefault(False)
             b.clicked.connect(lambda _=False, fn=fn: fn())
@@ -86,12 +87,12 @@ class RadioDialog(QDialog):
             url = f"{API}/stations/{what}/200?hidebroken=true"
         else:
             url = f"{API}/stations/{what}"
-        self.status.setText("Buscando emisoras…")
+        self.status.setText(tr("Buscando emisoras…"))
         run_bg(lambda: http_json(url), self._loaded)
 
     def _loaded(self, res):
         if isinstance(res, Exception) or not isinstance(res, list):
-            self.status.setText(f"No se pudo consultar el directorio de radios: {res}")
+            self.status.setText(tr("No se pudo consultar el directorio de radios: {0}").format(res))
             return
         self._show(res)
 
@@ -114,8 +115,8 @@ class RadioDialog(QDialog):
             it.setToolTip(0, url)
             items.append(it)
         self.list.addTopLevelItems(items)
-        self.status.setText(f"{len(items)} emisoras" + (" favoritas" if fav else "") +
-                            ". Doble clic o Enter para escuchar.")
+        count = (tr("{0} emisoras favoritas") if fav else tr("{0} emisoras")).format(len(items))
+        self.status.setText(count + tr(". Doble clic o Enter para escuchar."))
 
     def _selected(self):
         return [it.data(0, ROLE) for it in self.list.selectedItems()] or \
@@ -134,7 +135,7 @@ class RadioDialog(QDialog):
         st = self._selected()
         if st:
             self.app.player.add([s["url"] for s in st])
-            self.status.setText(f"Añadidas {len(st)} emisoras a la lista.")
+            self.status.setText(tr("Añadidas {0} emisoras a la lista.").format(len(st)))
 
     def toggle_fav(self):
         favs = list(self.app.cfg["radio_favorites"] or [])
@@ -146,7 +147,7 @@ class RadioDialog(QDialog):
                 favs.append(s)
         self.app.cfg["radio_favorites"] = favs
         self.app.cfg.save()
-        self.status.setText(f"{len(favs)} emisoras favoritas.")
+        self.status.setText(tr("{0} emisoras favoritas.").format(len(favs)))
         if self.mode.currentIndex() == 6:
             self._show(favs, fav=True)
 

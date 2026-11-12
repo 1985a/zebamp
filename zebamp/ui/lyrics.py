@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QListWidget,
 from .. import lyricsfind
 from .. import lyricsync as S
 from ..config import DATA_DIR
+from ..i18n import tr
 
 SYNC_STORE = S.SyncStore(os.path.join(DATA_DIR, "lyrics_sync.json"))
 
@@ -73,7 +74,7 @@ class LyricsWindow(QDialog):
     def __init__(self, app):
         super().__init__(None)
         self.app = app
-        self.setWindowTitle("Letras - Zebamp")
+        self.setWindowTitle(tr("Letras - Zebamp"))
         self.setPalette(getattr(app, "dialog_palette", self.palette()))
         self.resize(460, 600)
         lay = QVBoxLayout(self)
@@ -96,7 +97,7 @@ class LyricsWindow(QDialog):
         self.status = QLabel("")
         self.status.setWordWrap(True)
         row.addWidget(self.status, 1)
-        b = QPushButton("Volver a buscar")
+        b = QPushButton(tr("Volver a buscar"))
         b.clicked.connect(lambda: self._load(force=True))
         row.addWidget(b)
         lay.addLayout(row)
@@ -146,7 +147,7 @@ class LyricsWindow(QDialog):
     def _update_status(self):
         info = self.state.info()
         if self.state.lyrics.synced:
-            info += " — doble clic: ir a la línea · Mayús+clic: «esta línea suena ahora»"
+            info += tr(" — doble clic: ir a la línea · Mayús+clic: «esta línea suena ahora»")
         self.status.setText(info)
 
     # ---------------------------------------------------------- following
@@ -198,13 +199,13 @@ class LyricsWindow(QDialog):
         m = QMenu(self)
         item = self.list.itemAt(pos)
         if item is not None and self.state.lyrics.synced:
-            m.addAction("Esta línea suena ahora (sincronizar)", lambda: self.tap(self.list.row(item)))
+            m.addAction(tr("Esta línea suena ahora (sincronizar)"), lambda: self.tap(self.list.row(item)))
         if self.state.lyrics.synced:
-            m.addAction("Letra más tarde (+0,5 s)", lambda: self.nudge(0.5))
-            m.addAction("Letra antes (−0,5 s)", lambda: self.nudge(-0.5))
-            m.addAction("Restablecer sincronización", self._reset)
+            m.addAction(tr("Letra más tarde (+0,5 s)"), lambda: self.nudge(0.5))
+            m.addAction(tr("Letra antes (−0,5 s)"), lambda: self.nudge(-0.5))
+            m.addAction(tr("Restablecer sincronización"), self._reset)
             m.addSeparator()
-        m.addAction("Volver a buscar la letra", lambda: self._load(force=True))
+        m.addAction(tr("Volver a buscar la letra"), lambda: self._load(force=True))
         m.popup(self.list.viewport().mapToGlobal(pos))
 
     def _reset(self):

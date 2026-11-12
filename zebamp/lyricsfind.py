@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 
 from .lyricsync import Lyrics, choose_candidate, looks_synced, parse_lrc, song_query
 from .threads import http_json
+from .i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def from_sidecar(song: dict, music_dir: str | None) -> Lyrics | None:
         except OSError:
             continue
         if text.strip():
-            return _from_text(text, "archivo .lrc")
+            return _from_text(text, tr("archivo .lrc"))
     return None
 
 
@@ -70,7 +71,7 @@ def from_tags(client, song: dict) -> Lyrics | None:
     texts = [v for k, v in comments.items() if "lyric" in k.lower() and v]
     texts = [t if isinstance(t, str) else "\n".join(t) for t in texts]
     texts.sort(key=lambda t: 0 if looks_synced(t) else 1)       # synced first
-    return _from_text(texts[0], "etiquetas del archivo") if texts else None
+    return _from_text(texts[0], tr("etiquetas del archivo")) if texts else None
 
 
 def _cache_path(artist: str, title: str, duration: float | None) -> str:
@@ -131,7 +132,7 @@ def fetch_lrclib(artist: str, title: str, album: str, duration: float | None) ->
         except Exception as e:
             log.debug("lrclib search: %s", e)
     if not reached:
-        raise LyricsUnavailable("lrclib.net no responde")
+        raise LyricsUnavailable(tr("lrclib.net no responde"))
     return choose_candidate(hits, duration)
 
 

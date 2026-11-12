@@ -30,7 +30,9 @@ refleja y le envía órdenes.
 | Ventanas comunes | `ui/dialogs.py`, `ui/library.py`, `ui/radio.py`, `ui/lyrics.py`, `ui/help.py`… | Diálogos Qt normales con la paleta del skin. |
 | Letras | `lyricsync.py` (lógica pura: LRC, versión, sincronización), `lyricsfind.py` (fuentes: `.lrc`, etiquetas, caché, LRCLIB), `ui/lyrics.py`, `ui/lyricspanel.py` | Las dos vistas comparten `LyricsState`; la lógica se prueba sin interfaz (`tests/test_lyrics.py`). |
 | Audio y vídeo | `vis.py`, `milkdrop.py`, `audio/` | Visualización (FFT del audio de MPD), MilkDrop (projectM vía `native/pmshim.cpp`), ecualizador en PipeWire. |
-| Escritorio | `mpris.py`, `tray.py`, `notify.py`, `ipc.py` | Teclas multimedia, bandeja, notificaciones, una sola instancia y órdenes `zebamp --…`. |
+| Escritorio | `mpris.py`, `tray.py`, `notify.py`, `ipc.py`, `compositor.py` | Teclas multimedia, bandeja, notificaciones, una sola instancia y órdenes `zebamp --…`. `compositor.py` reúne lo que hay que pedirle a cada compositor (sway, Hyprland): dónde están los monitores, mover el lienzo, dar el foco. |
+| Extras | `smartlist.py`, `scrobble.py`, `sleeptimer.py`, `profiles.py` | Lógica pura con sus pruebas (listas por reglas, peticiones de scrobbling, fin de álbum, perfiles de servidor); sus ventanas están en `ui/`. |
+| Idiomas | `i18n.py`, `data/i18n/en.json`, `ui/help_en.py` | El texto del código es español; `tr("…")` lo devuelve en el idioma elegido al arrancar. |
 
 ## Cómo fluye un cambio
 
@@ -111,6 +113,21 @@ Salen de medir el programa; respétalas al cambiar el código.
   `ZEBAMP_TESTING`.
 - Un objeto de skin roto no debe dejar la ventana en blanco: los errores de
   pintado y de scripts se registran y se sigue.
+
+## Idiomas
+
+- Todo texto que ve el usuario va dentro de `tr("…")`, **con el texto literal**
+  (no una variable): una prueba recoge esos textos del código y falla si a
+  alguno le falta su traducción en `data/i18n/en.json`, o si sobra alguna.
+- Con datos dentro, se usa una plantilla: `tr("Quedan {0}").format(tiempo)`;
+  la traducción debe conservar los mismos `{0}`, `{1}`…
+- El idioma se fija al arrancar (`i18n.setup()` en `__main__.py`, antes de
+  importar las ventanas). Por eso las tablas de etiquetas se pueden traducir
+  donde se definen, y por eso cambiar de idioma pide reiniciar.
+- Las pruebas corren en español (nadie llama a `setup()`); el inglés se prueba
+  en un proceso aparte, igual que arranca `zebamp --lang en`.
+- La ayuda tiene un módulo por idioma (`ui/help.py`, `ui/help_en.py`) con las
+  mismas secciones y enlaces; otra prueba vigila que no se separen.
 
 ## Comprobar el código
 
