@@ -203,6 +203,26 @@ Servidor.
 
 ## Skins
 
+Zebamp usa los skins de Winamp tal cual. Estos son el clásico original y los
+modernos de Winamp 5, funcionando en Zebamp:
+
+| Winamp Classic (`.wsz`) | Winamp Modern (`.wal`) |
+|---|---|
+| ![Skin clásico original de Winamp: ventana principal, ecualizador y lista](docs/capturas/winamp-clasico.png) | ![Skin Winamp Modern: ventana principal, lista y carátula](docs/capturas/winamp-modern.png) |
+
+**Bento**, con la biblioteca de medios dentro de la ventana:
+
+![Skin Bento con la biblioteca de medios](docs/capturas/bento.png)
+
+**Big Bento**:
+
+![Skin Big Bento con la biblioteca de medios](docs/capturas/big-bento.png)
+
+Los skins de Winamp pertenecen a sus autores y **no vienen con Zebamp**: se
+añaden aparte (Menú › Skins › «Conseguir más skins» abre el Winamp Skin
+Museum). El único skin incluido es el propio de Zebamp, el de la primera
+imagen de esta página.
+
 Carpeta: `~/.local/share/zebamp/skins` (Alt+S → «Añadir skin…» los copia ahí).
 
 * **Clásicos (.wsz/.zip/carpeta)**: todos los bitmaps estándar, `region.txt`
