@@ -394,6 +394,15 @@ ANSWER = {"status": "ok", "results": [
         {"id": "untitled", "duration": 217}]}]}
 
 
+class MusicDirectoryTest(unittest.TestCase):
+    def test_both_shapes_python_mpd2_gives(self):
+        from zebamp.player import music_directory_of
+        self.assertEqual(music_directory_of({"music_directory": "/musica"}), "/musica")
+        self.assertEqual(music_directory_of("/musica"), "/musica")               # other library versions
+        for nothing in (None, {}, "", {"music_directory": None}, ["x"], 3):
+            self.assertIsNone(music_directory_of(nothing))
+
+
 class SongNamesTest(unittest.TestCase):
     def test_file_name_fills_only_what_the_tags_lack(self):
         got = S.names_from_file({"file": "MUSIC/otras/Los Píxeles - Lluvia sobre el asfalto.mp3"})

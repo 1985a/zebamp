@@ -46,7 +46,7 @@ versiones según [PEP 440](https://peps.python.org/pep-0440/).
 ### Interno
 - Las ventanas de letras y carátula comparten el marco (`ui/genpanel.py`).
 - El índice de la biblioteca guarda el año (se reconstruye una vez).
-- 184 pruebas automáticas (eran 70).
+- 185 pruebas automáticas (eran 70).
 
 ## 1.0.0rc1 - 2026-11-08
 

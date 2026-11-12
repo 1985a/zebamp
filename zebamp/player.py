@@ -34,6 +34,15 @@ def first(v):
     return v or ""
 
 
+def music_directory_of(config_reply) -> str | None:
+    """MPD's music folder from the answer to `config` (which it only gives
+    to local clients).  python-mpd2 returns it as a dict or, in other
+    versions, as the bare path."""
+    if isinstance(config_reply, dict):
+        config_reply = config_reply.get("music_directory")
+    return config_reply if isinstance(config_reply, str) and config_reply else None
+
+
 def song_duration(song: dict) -> float:
     return _f(song.get("duration"), _f(song.get("time"), 0.0))
 
@@ -130,11 +139,9 @@ class Player(QObject):
 
     def _on_conn(self, ok: bool):
         if ok:
-            cfg = self.conn.call("config", default=None)
-            if isinstance(cfg, dict):
-                self.music_directory = cfg.get("music_directory")
-            elif self.conn.addr.is_socket is False:
-                self.music_directory = None
+            directory = music_directory_of(self.conn.call("config", default=None))
+            if directory or self.conn.addr.is_socket is False:
+                self.music_directory = directory
             self._pl_version = None
             self._refresh_all()
         else:

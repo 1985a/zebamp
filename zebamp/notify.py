@@ -10,7 +10,7 @@ import shutil
 from PySide6.QtCore import QObject, QProcess, QTimer, Qt
 from PySide6.QtGui import QImage
 
-from .player import first, fmt_time
+from .player import first, fmt_time, music_directory_of
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def cover_job(app, song: dict, force=False):
 def _music_directory(client) -> str | None:
     """MPD's music folder (it only tells local clients)."""
     try:
-        return (client.config() or {}).get("music_directory") if hasattr(client, "config") else None
+        return music_directory_of(client.config())
     except Exception:
         return None
 
