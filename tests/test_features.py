@@ -281,6 +281,32 @@ class ReachesMonitorTest(unittest.TestCase):
         self.assertTrue(reaches_other_monitor([QRect(-5, 300, 550, 232)], canvas, screens))
 
 
+class DockedGroupTest(unittest.TestCase):
+    """The windows docked to the main one travel with it and stay docked."""
+
+    def test_group_keeps_its_shape_on_half_pixel_moves(self):
+        # at 2x an odd pointer offset is half a skin pixel: rounding each
+        # window on its own sent odd and even rows opposite ways (1 px apart)
+        from PySide6.QtCore import QPoint
+        from zebamp.canvas import moved_together
+        start = {"main": QPoint(980, 34), "pl": QPoint(980, 150), "ly": QPoint(980, 353)}
+        for dev in range(-9, 10):
+            out = moved_together(start, dev / 2, dev / 2)
+            self.assertEqual(out["pl"] - out["main"], QPoint(0, 116), dev)
+            self.assertEqual(out["ly"] - out["main"], QPoint(0, 319), dev)
+        self.assertEqual(moved_together(start, 10, -4)["ly"], QPoint(990, 349))
+
+    def test_docked_keys_are_measured_in_skin_pixels(self):
+        from PySide6.QtCore import QRect
+        from zebamp.canvas import docked_keys
+        rects = {"main": QRect(980, 34, 275, 116), "pl": QRect(980, 150, 275, 203),
+                 "ly": QRect(980, 352, 275, 174),          # 1 px over the playlist
+                 "apart": QRect(1400, 34, 275, 116)}
+        self.assertEqual(sorted(docked_keys("main", rects)), ["ly", "main", "pl"])
+        rects["ly"] = QRect(980, 356, 275, 174)            # a real gap: loose
+        self.assertEqual(sorted(docked_keys("main", rects)), ["main", "pl"])
+
+
 class FollowBottomEdgesTest(unittest.TestCase):
     def test_shading_drags_the_stack_below(self):
         from PySide6.QtCore import QRect

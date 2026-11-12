@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 
-from PySide6.QtCore import QRect
+from PySide6.QtCore import QPoint, QRect
 
 
 def fit_to_workspace(widget) -> tuple[int, int] | None:
@@ -159,6 +159,31 @@ def touching(a: QRect, b: QRect, tol=1) -> bool:
     h = a.x() < br and b.x() < ar
     return (v and (abs(ar - b.x()) <= tol or abs(br - a.x()) <= tol)) or \
         (h and (abs(ab - b.y()) <= tol or abs(bb - a.y()) <= tol))
+
+
+def docked_keys(start, rects: dict, tol=1) -> list:
+    """Keys of the windows docked to `start`, directly or through others.
+
+    `rects` are in skin pixels (key -> QRect), so the tolerance does not
+    shrink when the skin is drawn at 2x or 3x."""
+    group, todo = [start], [start]
+    while todo:
+        c = rects[todo.pop()]
+        for k, r in rects.items():
+            if k not in group and touching(c, r, tol):
+                group.append(k)
+                todo.append(k)
+    return group
+
+
+def moved_together(start_pos: dict, dx: float, dy: float) -> dict:
+    """Positions (key -> QPoint) of a group moved by (dx, dy) skin pixels.
+
+    The step is rounded once for the whole group: rounding each window on its
+    own splits a half pixel both ways (round() goes to the even neighbour),
+    which left odd and even rows 1 px apart and no longer docked."""
+    step = QPoint(round(dx), round(dy))
+    return {k: p + step for k, p in start_pos.items()}
 
 
 def fit_group(bb: QRect, screens: list[QRect]) -> tuple[int, int]:

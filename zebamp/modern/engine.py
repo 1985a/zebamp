@@ -461,9 +461,10 @@ class ModernDock(QWidget):
         best_x, best_y = snap_offsets(moving, static, self._screens_l(), snap)
         dx += best_x or 0
         dy += best_y or 0
+        from ..canvas import moved_together
+        placed = moved_together({g.id: start_pos[g.id] for g in group}, dx, dy)
         for g in group:
-            p = start_pos[g.id]
-            self.pos[g.id] = QPoint(round(p.x() + dx), round(p.y() + dy))
+            self.pos[g.id] = placed[g.id]
             if hasattr(self, "_last_solid"):
                 self._last_solid[g.id] = self.solid_of(g, self.pos[g.id].x(), self.pos[g.id].y())
             g.window.move(round(self.pos[g.id].x() * s), round(self.pos[g.id].y() * s))

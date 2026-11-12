@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import os
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import (QColor, QDesktopServices,
                            QGuiApplication, QKeySequence, QPalette, QRegion, QTransform)
 from PySide6.QtWidgets import (QApplication, QFileDialog, QInputDialog, QMenu,
@@ -303,17 +303,15 @@ class ZebampApp:
         self.shell.setMask(region)
 
     def _drag_begin(self, panel, pt):
-        vis = self.visible_panels()
         group = [panel]
         if panel is self.main_panel:
-            from .canvas import touching
-            todo = [panel]
-            while todo:
-                c = todo.pop()
-                for o in vis:
-                    if o not in group and touching(c.geometry(), o.geometry()):
-                        group.append(o)
-                        todo.append(o)
+            from .canvas import docked_keys
+            rects = {}
+            for o in self.visible_panels():
+                k = self._pkey(o)
+                rects[k] = QRect(self._ppos[k], QSize(*o.logical_size()))
+            by_key = dict(zip(self.PANEL_KEYS, self.panels(), strict=True))
+            group = [by_key[k] for k in docked_keys("main", rects)]
         self._drag = (pt, group, {self._pkey(g): QPoint(self._ppos[self._pkey(g)]) for g in group})
         for g in group:
             g.raise_()
@@ -360,11 +358,12 @@ class ZebampApp:
         ax, ay = snap_offsets(moving, static, self._screens_dev(), 14)
         dx, dy = dx + ax, dy + ay
         region = QRegion()
+        from .canvas import moved_together
+        placed = moved_together({self._pkey(g): start_pos[self._pkey(g)] for g in group}, dx / s, dy / s)
         for g in group:
-            sp = start_pos[self._pkey(g)]
-            x, y = round(sp.x() + dx / s), round(sp.y() + dy / s)
-            self._ppos[self._pkey(g)] = QPoint(x, y)
-            g.move(x * s, y * s)
+            q = placed[self._pkey(g)]
+            self._ppos[self._pkey(g)] = q
+            g.move(q.x() * s, q.y() * s)
         for o in self.visible_panels():
             region = region.united(self._panel_region(o, o.x(), o.y()))
         self.shell.setMask(region)
