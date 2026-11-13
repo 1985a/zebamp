@@ -343,6 +343,28 @@ tags, the audio format, the cover and the path.</p>
 writing to the file, Zebamp shows you the changes and asks for <b>confirmation</b>. Then it
 tells MPD to update its database. It only works with local files you are allowed to
 modify.</p>
+<h3>Audio quality</h3>
+<p><kbd>Alt+Q</kbd> (or Menu › Playback › Audio quality…, or a right-click on a song in the
+playlist) opens the song's <b>spectrogram</b>: a picture of its sound, with time running
+from left to right and pitch from bass (bottom) to treble (top); the brighter, the
+louder.</p>
+<p>A file's format does not guarantee its quality: a FLAC made from an MP3 is as large as a
+true one and sounds like the MP3. The picture gives it away, because lossy formats remove
+everything above some frequency and leave a straight edge with nothing but black above.
+Zebamp looks for that edge and gives you a verdict:</p>
+<ul>
+<li><b>True lossless</b>: the sound reaches the top (about 22 kHz at CD quality).</li>
+<li><b>True high resolution</b>: files at 88.2 kHz or more with sound above what fits on a
+CD.</li>
+<li><b>Suspicious</b>: a lossless format that stops dead (it probably comes from an MP3), a
+high resolution file with nothing above 22 kHz, or an MP3 with many kbps that sounds like
+one with few.</li>
+<li><b>Lossy</b>, with its level: the cut is around 16 kHz at 128 kbps, 19 kHz at 192 and
+20 kHz at 256–320.</li>
+</ul>
+<p>It is an estimate: some old recordings have little treble to begin with. The program
+<code>ffmpeg</code> is needed, and the file must be on this computer. For the tracks of a
+<code>.cue</code> only that track's stretch is analysed.</p>
 <h3>Recognising a song by its sound</h3>
 <p>For files with no tags and no useful name, Zebamp can find out what song it is by
 listening to it: it works out an <i>audio fingerprint</i> of the file and looks it up in the
@@ -557,7 +579,8 @@ position of the windows.</p>
         ("Alt+E", "playlist"), ("Alt+G", "equalizer"),
         ("Alt+L", "media library"), ("Alt+R", "Internet radio"),
         ("Ctrl+Shift+L", "lyrics"), ("Ctrl+Shift+A", "album art"), ("Ctrl+K Ctrl+Shift+K", "MilkDrop"),
-        ("Alt+3", "file info"), ("Alt+S", "skin browser"),
+        ("Alt+3", "file info"), ("Alt+Q", "audio quality (spectrogram)"),
+        ("Alt+S", "skin browser"),
         ("Ctrl+P Alt+K", "preferences"), ("Ctrl+W Alt+W", "compact mode"),
         ("Ctrl+D", "double size"), ("Ctrl+T", "time remaining / elapsed"),
         ("Ctrl+Q", "quit"),

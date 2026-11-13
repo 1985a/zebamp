@@ -141,6 +141,7 @@ class FileInfoDialog(QDialog):
         self.art.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.art.setText(tr("(sin carátula)"))
         side.addWidget(self.art)
+        self._add_cover_search(side)
         if self.path:
             b1 = QPushButton(tr("Cambiar carátula…"))
             b1.clicked.connect(self._pick_cover)
@@ -149,6 +150,9 @@ class FileInfoDialog(QDialog):
             b2.clicked.connect(self._drop_cover)
             side.addWidget(b2)
         self._add_identify(side)
+        quality = QPushButton(tr("Calidad del audio…"))
+        quality.clicked.connect(lambda: self.app.show_quality(self.song))
+        side.addWidget(quality)
         side.addStretch(1)
         lay.addLayout(side)
         if f:
@@ -288,31 +292,65 @@ class FileInfoDialog(QDialog):
         self._dirty()
         QMessageBox.information(self, tr("Guardado"), tr("Cambios guardados. MPD está releyendo el archivo."))
 
-    def _load_art(self, uri):
-        app = self.app
+    def _load_art(self, uri, search=False):
+        """Show the cover the rest of Zebamp shows for this song (embedded,
+        MPD's, the album folder or the Internet).  `search` looks on the
+        Internet now, whatever the setting and even if it failed recently."""
+        from ..notify import cover_job
+        job = cover_job(self.app, self.song, force=search, online=True if search else None)
+        self.app.player.conn.run_async(job, lambda path: self._show_art(path, searched=search))
 
-        def job(client):
-            for cmd in ("readpicture", "albumart"):
-                try:
-                    r = getattr(client, cmd)(uri)
-                    if isinstance(r, dict) and r.get("binary"):
-                        return r["binary"]
-                except Exception:
-                    continue
-            return None
+    def _show_art(self, path, searched=False):
+        try:
+            pm = QPixmap(path) if isinstance(path, str) else QPixmap()
+            self._art_path = path if not pm.isNull() else None
+            if pm.isNull():
+                self.art.setPixmap(QPixmap())
+                self.art.setText(tr("No se encontró carátula") if searched else tr("(sin carátula)"))
+            else:
+                self.art.setPixmap(pm.scaled(220, 220, Qt.AspectRatioMode.KeepAspectRatio,
+                                             Qt.TransformationMode.SmoothTransformation))
+            self._update_cover_search()
+        except RuntimeError:
+            pass  # dialog already closed
 
-        def done(data):
-            try:
-                if data:
-                    img = QImage.fromData(data)
-                    if not img.isNull():
-                        pm = QPixmap.fromImage(img).scaled(
-                            220, 220, Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation)
-                        self.art.setPixmap(pm)
-            except RuntimeError:
-                pass  # dialog already closed
-        app.player.conn.run_async(job, done)
+    # ------------------------------------------- cover from the Internet
+    def _add_cover_search(self, side):
+        """One button under the picture: look for the cover when there is
+        none, or for another one when the downloaded one is wrong."""
+        from ..notify import cover_query
+        self._art_path = None
+        self._cover_query = cover_query(self.app, self.song)
+        self.cover_search = QPushButton(tr("Buscar carátula en Internet"))
+        self.cover_search.clicked.connect(self._search_cover)
+        self.cover_search.setVisible(False)
+        side.addWidget(self.cover_search)
+
+    def _shows_online_cover(self) -> bool:
+        from ..coverfind import CoverCache
+        query = self._cover_query
+        return bool(query and self._art_path and self._art_path == CoverCache().image_path(query))
+
+    def _update_cover_search(self):
+        """Offered when a search makes sense: no cover at all, or one that
+        came from the Internet (a local cover is never replaced)."""
+        online = self._shows_online_cover()
+        self.cover_search.setText(tr("No es esta carátula: buscar otra") if online
+                                  else tr("Buscar carátula en Internet"))
+        self.cover_search.setVisible(bool(self._cover_query) and (online or self._art_path is None))
+        self.cover_search.setEnabled(True)
+
+    def _search_cover(self):
+        from ..coverfind import CoverCache
+        cache = CoverCache()
+        if self._shows_online_cover():
+            cache.reject(self._cover_query)         # never offered again; the next match is tried
+        else:
+            cache.forget(self._cover_query)
+        self.cover_search.setEnabled(False)
+        self.art.setPixmap(QPixmap())
+        self.art.setText(tr("Buscando…"))
+        self._load_art(self.uri, search=True)
 
 
 # ---------------------------------------------------------- jump to file

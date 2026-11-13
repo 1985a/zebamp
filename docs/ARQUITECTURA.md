@@ -31,8 +31,9 @@ refleja y le envía órdenes.
 | Letras | `lyricsync.py` (lógica pura: LRC, versión, sincronización), `lyricsfind.py` (fuentes: `.lrc`, etiquetas, caché, LRCLIB), `ui/lyrics.py`, `ui/lyricspanel.py` | Las dos vistas comparten `LyricsState`; la lógica se prueba sin interfaz (`tests/test_lyrics.py`). |
 | Audio y vídeo | `vis.py`, `milkdrop.py`, `audio/` | Visualización (FFT del audio de MPD), MilkDrop (projectM vía `native/pmshim.cpp`), ecualizador en PipeWire. |
 | Escritorio | `mpris.py`, `tray.py`, `notify.py`, `ipc.py`, `compositor.py` | Teclas multimedia, bandeja, notificaciones, una sola instancia y órdenes `zebamp --…`. `compositor.py` reúne lo que hay que pedirle a cada compositor (sway, Hyprland): dónde están los monitores, mover el lienzo, dar el foco. |
+| Calidad del audio | `audioquality.py`, `ui/quality.py` | Decodifica con ffmpeg en flujo (nunca la canción entera en memoria), calcula el espectrograma y el espectro medio con numpy, busca el corte de un formato con pérdida y redacta el veredicto. |
 | Qué canción es | `songid.py` | Nombres para buscar cuando faltan las etiquetas: el nombre del archivo o, con la clave del usuario, la huella de audio (`fpcalc`) consultada en AcoustID. Se recuerda por archivo. |
-| Carátulas | `notify.py` (`fetch_cover_job`: lo local), `coverfind.py` (Internet) | Primero la imagen incrustada, la de MPD y la carpeta; si no hay y el usuario lo permite, `coverfind` busca con coincidencia estricta y guarda una carátula por álbum. |
+| Carátulas | `notify.py` (`fetch_cover_job`: lo local), `localcover.py` (qué imagen de la carpeta es la portada), `coverfind.py` (Internet) | Primero la imagen incrustada, la de MPD y la carpeta; si no hay y el usuario lo permite, `coverfind` busca con coincidencia estricta y guarda una carátula por álbum. |
 | Extras | `smartlist.py`, `scrobble.py`, `sleeptimer.py`, `profiles.py` | Lógica pura con sus pruebas (listas por reglas, peticiones de scrobbling, fin de álbum, perfiles de servidor); sus ventanas están en `ui/`. |
 | Idiomas | `i18n.py`, `data/i18n/en.json`, `ui/help_en.py` | El texto del código es español; `tr("…")` lo devuelve en el idioma elegido al arrancar. |
 

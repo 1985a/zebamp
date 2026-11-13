@@ -24,6 +24,7 @@ Requisitos (nombres de paquetes de Arch Linux):
 | Ecualizador y captura de audio | `pipewire` (`pw-record`, `pw-dump`) |
 | MilkDrop | `projectm` y `gcc` (el puente C++ se compila solo la primera vez) |
 | Reconocer canciones por su sonido | `chromaprint` (`fpcalc`) |
+| Calidad del audio (espectrograma) | `ffmpeg` |
 
 En **Arch Linux**, como paquete (se actualiza con `git pull` y otro `makepkg -si`):
 
@@ -193,6 +194,11 @@ con una clave gratuita de AcoustID, Zebamp **reconoce la canción por su
 sonido** (huella de audio con `fpcalc`); también desde la ventana de
 información, para proponer las etiquetas.
 
+**Calidad del audio** (Alt+Q): espectrograma de la canción y un veredicto
+(«sin pérdida auténtico», «sospechoso: parece venir de un MP3», «alta
+resolución auténtica»…). Sirve para saber si un FLAC es de verdad sin pérdida.
+Necesita `ffmpeg`.
+
 **Temporizador de apagado**: pausa en N minutos o al terminar el álbum (Menú ›
 Opciones).
 
@@ -282,7 +288,7 @@ aparece dentro de Bento/Big Bento y en la ventana «Media Library»; sus título
 | Ctrl+D | tamaño doble | Ctrl+W | modo compacto |
 | Ctrl+T | tiempo restante | Ctrl+Q | salir |
 | Ctrl+Shift+L | letras | F1 | ayuda |
-| Ctrl+Shift+A | carátula | | |
+| Ctrl+Shift+A | carátula | Alt+Q | calidad del audio |
 
 En la lista: flechas/RePág/AvPág/Inicio/Fin (Shift amplía), Enter reproduce,
 Supr quita, Shift+Supr recorta, Ctrl+Supr vacía, Ctrl+A / Ctrl+I seleccionan,

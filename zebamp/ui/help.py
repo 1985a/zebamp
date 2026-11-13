@@ -358,6 +358,29 @@ etiquetas, el formato del audio, la carátula y la ruta.</p>
 escribir en el archivo, Zebamp te enseña los cambios y te pide <b>confirmación</b>. Después
 avisa a MPD para que actualice su base de datos. Solo funciona con archivos locales que
 puedas modificar.</p>
+<h3>Calidad del audio</h3>
+<p><kbd>Alt+Q</kbd> (o Menú › Reproducción › Calidad del audio…, o clic derecho sobre una
+canción de la lista) abre el <b>espectrograma</b> de la canción: una imagen de su sonido, con
+el tiempo de izquierda a derecha y los tonos de graves (abajo) a agudos (arriba); cuanto más
+claro, más fuerte.</p>
+<p>El formato de un archivo no garantiza su calidad: un FLAC creado a partir de un MP3 ocupa
+como uno auténtico y suena como el MP3. La imagen lo delata, porque los formatos con pérdida
+eliminan todo lo que hay por encima de cierta frecuencia y dejan un borde recto con todo
+negro encima. Zebamp busca ese borde y te da un veredicto:</p>
+<ul>
+<li><b>Sin pérdida auténtico</b>: el sonido llega hasta arriba (unos 22 kHz en calidad de
+CD).</li>
+<li><b>Alta resolución auténtica</b>: archivos de 88,2 kHz o más con sonido por encima de lo
+que cabe en un CD.</li>
+<li><b>Sospechoso</b>: un formato sin pérdida que se corta en seco (probablemente viene de un
+MP3), un archivo de alta resolución sin nada por encima de 22 kHz, o un MP3 de muchos kbps que
+suena como uno de pocos.</li>
+<li><b>Con pérdida</b>, con su nivel: el corte ronda los 16 kHz a 128 kbps, 19 kHz a 192 y
+20 kHz a 256–320.</li>
+</ul>
+<p>Es una estimación: algunas grabaciones antiguas tienen pocos agudos de origen. Hace falta
+el programa <code>ffmpeg</code> y que el archivo esté en este equipo. En las pistas de un
+<code>.cue</code> se analiza solo el tramo de esa pista.</p>
 <h3>Reconocer una canción por su sonido</h3>
 <p>Para los archivos sin etiquetas ni nombre útil, Zebamp puede averiguar qué canción es
 escuchándola: calcula una <i>huella de audio</i> del archivo y la consulta en la base de datos
@@ -567,7 +590,8 @@ posición de las ventanas.</p>
         ("Alt+E", "lista de reproducción"), ("Alt+G", "ecualizador"),
         ("Alt+L", "biblioteca de medios"), ("Alt+R", "radio por Internet"),
         ("Ctrl+Shift+L", "letras"), ("Ctrl+Shift+A", "carátula"), ("Ctrl+K Ctrl+Shift+K", "MilkDrop"),
-        ("Alt+3", "información del archivo"), ("Alt+S", "explorador de skins"),
+        ("Alt+3", "información del archivo"), ("Alt+Q", "calidad del audio (espectrograma)"),
+        ("Alt+S", "explorador de skins"),
         ("Ctrl+P Alt+K", "preferencias"), ("Ctrl+W Alt+W", "modo compacto"),
         ("Ctrl+D", "tamaño doble"), ("Ctrl+T", "tiempo restante / transcurrido"),
         ("Ctrl+Q", "salir"),
@@ -820,7 +844,7 @@ CONTEXT = {
     "LyricsWindow": "letras", "MilkdropWindow": "vis", "MilkdropConfig": "vis",
     "PresetPicker": "vis", "PreferencesDialog": "preferencias", "FileInfoDialog": "info",
     "SkinBrowser": "skins", "BookmarksDialog": "marcadores", "JumpToFileDialog": "lista",
-    "PlaylistsDialog": "lista", "SmartListDialog": "biblioteca",
+    "PlaylistsDialog": "lista", "SmartListDialog": "biblioteca", "QualityWindow": "info",
 }
 
 

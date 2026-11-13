@@ -17,6 +17,7 @@ optdepends=('mpd: a local music server to control'
             'pipewire: equalizer and visualisation without a fifo'
             'projectm: MilkDrop visualisation'
             'chromaprint: recognise untagged songs by their sound (fpcalc)'
+            'ffmpeg: audio quality viewer (spectrogram)'
             'libnotify: song change notifications'
             'gcc: builds the MilkDrop bridge on first use')
 provides=('zebamp')

@@ -394,6 +394,81 @@ ANSWER = {"status": "ok", "results": [
         {"id": "untitled", "duration": 217}]}]}
 
 
+class FolderCoverTest(unittest.TestCase):
+    """Which of the images of an album folder is the front cover."""
+
+    def test_scans_of_the_whole_package(self):
+        from zebamp.localcover import pick_cover_file
+        scans = ["Banda - Disco [000000-1]-Back.png", "Banda - Disco [000000-1]-Gatefold.png",
+                 "Banda - Disco [000000-1]-Insert 1.png", "Banda - Disco [000000-1].png", "disco.cue", "disco.flac"]
+        sizes = {scans[0]: (7420, 7316), scans[1]: (15030, 7330), scans[2]: (3256, 3270), scans[3]: (7433, 7327)}
+        self.assertEqual(pick_cover_file(scans, sizes.get), "Banda - Disco [000000-1].png")
+        self.assertEqual(pick_cover_file(scans), "Banda - Disco [000000-1].png")         # sizes unknown: by name
+
+    def test_names_that_say_front_win(self):
+        from zebamp.localcover import pick_cover_file
+        self.assertEqual(pick_cover_file(["a.jpg", "back.jpg", "Cover.JPG"]), "Cover.JPG")
+        self.assertEqual(pick_cover_file(["01.jpg", "Disco - Portada.png", "Disco - Contraportada.png"]),
+                         "Disco - Portada.png")
+        self.assertEqual(pick_cover_file(["scan-back.jpg", "scan-front.jpg", "scan-cd.jpg"]), "scan-front.jpg")
+        self.assertEqual(pick_cover_file(["folder.jpg", "zz front.jpg"]), "folder.jpg")
+
+    def test_shape_decides_among_unnamed_pictures_never_file_size(self):
+        from zebamp.localcover import pick_cover_file
+        sizes = {"desplegable.png": (4000, 2000), "foto.png": (1000, 1010)}
+        self.assertEqual(pick_cover_file(list(sizes), sizes.get), "foto.png")
+        self.assertEqual(pick_cover_file(["solo-back.png"]), "solo-back.png")      # better than nothing
+        self.assertIsNone(pick_cover_file(["tema.flac", "notas.txt"]))
+        self.assertIsNone(pick_cover_file([]))
+
+    def test_words_are_whole_words(self):
+        from zebamp.localcover import FRONT, OTHER, UNKNOWN, kind
+        self.assertEqual(kind("Backstreet.png"), UNKNOWN)          # not "back"
+        self.assertEqual(kind("Disco [CD].png"), OTHER)
+        self.assertEqual(kind("Carátula.jpg"), FRONT)
+        self.assertEqual(kind("album art.png"), FRONT)
+
+    def test_huge_scans_are_read_small_and_monsters_are_passed_over(self):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtGui import QColor, QGuiApplication, QImage, QImageReader
+        from zebamp import localcover
+        self.app = QGuiApplication.instance() or QGuiApplication([])
+        folder = tempfile.mkdtemp(prefix="zebamp-scans-")
+        gatefold, front = os.path.join(folder, "Disco-Gatefold.png"), os.path.join(folder, "Disco.png")
+        big = QImage(6000, 3000, QImage.Format.Format_RGB32)       # 69 MB once decoded
+        big.fill(QColor("#405060"))
+        big.save(gatefold)
+        square = QImage(3000, 3000, QImage.Format.Format_RGB32)     # 35 MB once decoded
+        square.fill(QColor("#c08020"))
+        square.save(front)
+        del big, square
+        self.assertEqual(localcover.folder_covers(folder), [front, gatefold])
+        self.assertEqual(localcover.picture_size(gatefold), (6000, 3000))
+        small = localcover.load_scaled(front, 512)
+        self.assertEqual((small.width(), small.height()), (512, 512))
+        wide = localcover.load_scaled(gatefold, 512)
+        self.assertEqual((wide.width(), wide.height()), (512, 256))
+        limit = QImageReader.allocationLimit()
+        QImageReader.setAllocationLimit(50)                        # MB: the gatefold is now a "monster"
+        try:
+            self.assertTrue(localcover.load_scaled(gatefold, 512).isNull())      # refused, not a crash
+            self.assertFalse(localcover.load_scaled(front, 512).isNull())
+        finally:
+            QImageReader.setAllocationLimit(limit)
+        self.assertTrue(localcover.load_scaled(os.path.join(folder, "no-existe.png"), 512).isNull())
+        self.assertEqual(localcover.folder_covers(os.path.join(folder, "no-existe")), [])
+
+
+class CueSheetTest(unittest.TestCase):
+    def test_tracks_of_a_cue_sheet_live_in_the_folder_of_the_cue(self):
+        from zebamp.notify import container_file
+        self.assertEqual(container_file("Rock/Banda - Disco.cue/track0004"), "Rock/Banda - Disco.cue")
+        self.assertEqual(container_file("Rock/Banda - Disco.CUE/track0011"), "Rock/Banda - Disco.CUE")
+        self.assertEqual(container_file("Rock/Disco/04 tema.flac"), "Rock/Disco/04 tema.flac")
+        self.assertEqual(container_file("carpeta.cue/sub/tema.flac"), "carpeta.cue/sub/tema.flac")   # a real folder
+        self.assertEqual(container_file(""), "")
+
+
 class MusicDirectoryTest(unittest.TestCase):
     def test_both_shapes_python_mpd2_gives(self):
         from zebamp.player import music_directory_of

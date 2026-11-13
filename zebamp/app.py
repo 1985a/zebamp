@@ -876,7 +876,7 @@ class ZebampApp:
             table = {K.Key_E: self.toggle_playlist_window, K.Key_G: self.toggle_eq_window,
                      K.Key_L: self.show_library, K.Key_S: self.show_skin_browser,
                      K.Key_3: self.show_file_info, K.Key_W: self.toggle_main_shade,
-                     K.Key_R: self.show_radio,
+                     K.Key_R: self.show_radio, K.Key_Q: self.show_quality,
                      K.Key_K: self.show_preferences}
             fn = table.get(key)
             if fn:
@@ -1004,6 +1004,20 @@ class ZebampApp:
         if not s:
             return
         self.keep(FileInfoDialog(self, s)).show()
+
+    def show_quality(self, song=None):
+        """Alt+Q: the spectrogram of a song and what it says about its quality."""
+        from .ui.quality import QualityWindow
+        s = song or self.player.song
+        if not s:
+            return
+        w = self.keep(QualityWindow(self, s))
+        w.show()
+        w.raise_()
+
+    def show_quality_selected(self):
+        rows = self.pl_panel.selected_rows()
+        self.show_quality(self.player.queue[rows[0]] if rows else None)
 
     def show_file_info_selected(self):
         rows = self.pl_panel.selected_rows()
@@ -1510,6 +1524,7 @@ class ZebampApp:
         self._act(m, tr("Buscar canciones en la biblioteca…"), self.show_search, "Ctrl+F")
         self._act(m, tr("Saltar a tiempo…"), self.show_jump_to_time, "Ctrl+J")
         self._act(m, tr("Información del archivo…"), self.show_file_info, "Alt+3")
+        self._act(m, tr("Calidad del audio…"), self.show_quality, "Alt+Q")
         rm = m.addMenu(tr("Valorar canción actual"))
         cur = self.stats.rating((self.player.song or {}).get("file", ""))
         for n in range(5, -1, -1):
@@ -1698,6 +1713,7 @@ class ZebampApp:
         rows = pp.selected_rows()
         self._act(m, tr("Reproducir"), pp.play_cursor, "Enter", enabled=bool(rows))
         self._act(m, tr("Información del archivo…"), self.show_file_info_selected, "Alt+3", enabled=bool(rows))
+        self._act(m, tr("Calidad del audio…"), self.show_quality_selected, "Alt+Q", enabled=bool(rows))
         m.addSeparator()
         self._act(m, tr("Quitar"), pp.remove_selected, "Del", enabled=bool(rows))
         self._act(m, tr("Recortar"), pp.crop_selected, "Shift+Del", enabled=bool(rows))

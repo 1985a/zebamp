@@ -9,9 +9,8 @@ from PySide6.QtCore import QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import QMenu
 
-from ..coverfind import CoverCache, query_from_song
-from ..notify import cover_job
-from ..songid import described
+from ..coverfind import CoverCache
+from ..notify import cover_job, cover_query
 from .genpanel import GenPanel
 from ..i18n import tr
 
@@ -75,10 +74,7 @@ class ArtPanel(GenPanel):
 
     # ------------------------------------------ covers from the Internet
     def _query(self):
-        """The search the cover job makes for the current song (same names:
-        tags, what its sound was recognised as, or the file name)."""
-        player = self.app.player
-        return query_from_song(described(player.song or {}, player.music_directory))
+        return cover_query(self.app, self.app.player.song or {})
 
     def shows_online_cover(self) -> bool:
         query = self._query()

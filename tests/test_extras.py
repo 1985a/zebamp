@@ -611,6 +611,9 @@ class AppFeaturesTest(unittest.TestCase):
         def get_image(url):
             asked.append(url)
             return pictures.get(url)
+        # nothing may be playing: a song change would put the real song back in place of ours
+        app.player.stop()
+        wait(300)
         with mock.patch.object(coverfind, "fetch_json", get_json), \
                 mock.patch.object(coverfind, "fetch_image", get_image), mock.patch.object(app.player, "song", song):
             app.cfg["show_art_panel"] = True
@@ -693,8 +696,8 @@ class AppFeaturesTest(unittest.TestCase):
             subprocess.run(update, capture_output=True)
         self.addCleanup(remove_folder)
         answer = {"status": "ok", "results": [{"score": 0.96, "recordings": [
-            {"id": "rec", "title": "Lluvia sobre el asfalto", "artists": [{"name": "Los Píxeles"}],
-             "releasegroups": [{"id": "grp", "title": "Noches de neón", "type": "Album"}]}]}]}
+            {"id": "rec", "title": "Marea eléctrica", "artists": [{"name": "Las Ondas"}],
+             "releasegroups": [{"id": "grp", "title": "Mar de fondo", "type": "Album"}]}]}]}
         exact = "https://coverartarchive.org/release-group/grp/front-500"
         asked, got = [], []
 
@@ -718,6 +721,167 @@ class AppFeaturesTest(unittest.TestCase):
             self.app.player.conn.run_async(job, got.append)
             wait(600)
             self.assertEqual(ask.call_count, 1)
+
+    def test_file_info_shows_the_same_cover_as_the_notification(self):
+        """A picture MPD does not serve (not named cover.*) but that sits in
+        the album folder: the notification found it, so must File info."""
+        from PySide6.QtGui import QColor, QImage
+        from zebamp.notify import fetch_cover_job
+        from zebamp.ui.dialogs import FileInfoDialog
+        folder = os.path.join(self.tmp, "music", "D")
+        os.makedirs(folder, exist_ok=True)
+        shutil.copy(os.path.join(self.tmp, "music", "A", "00.wav"), os.path.join(folder, "tema.wav"))
+        scan = QImage(64, 64, QImage.Format.Format_RGB32)
+        scan.fill(QColor("#30a060"))
+        scan.save(os.path.join(folder, "escaneo del disco.png"))
+        update = ["mpc", "-h", f"{self.tmp}/sock", "update", "--wait"]
+        subprocess.run(update, capture_output=True)
+
+        def remove_folder():
+            shutil.rmtree(folder, ignore_errors=True)
+            subprocess.run(update, capture_output=True)
+        self.addCleanup(remove_folder)
+        song = {"file": "D/tema.wav"}
+        got = []
+        self.app.player.conn.run_async(fetch_cover_job("D/tema.wav", song), got.append)
+        wait(600)
+        self.assertTrue(got and got[0], "the notification's own search found nothing")
+        dialog = FileInfoDialog(self.app, song)
+        wait(700)
+        self.assertFalse(dialog.art.pixmap().isNull(), "File info shows no cover")
+        dialog.close()
+
+    def test_file_info_offers_to_search_and_to_replace_a_wrong_cover(self):
+        from unittest import mock
+        from zebamp import coverfind
+        from zebamp.ui.dialogs import FileInfoDialog
+        folder = os.path.join(self.tmp, "music", "F")
+        os.makedirs(folder, exist_ok=True)
+        shutil.copy(os.path.join(self.tmp, "music", "A", "00.wav"), os.path.join(folder, "uno.wav"))
+        update = ["mpc", "-h", f"{self.tmp}/sock", "update", "--wait"]
+        subprocess.run(update, capture_output=True)
+
+        def remove_folder():
+            shutil.rmtree(folder, ignore_errors=True)
+            subprocess.run(update, capture_output=True)
+        self.addCleanup(remove_folder)
+        song = {"file": "F/uno.wav", "artist": "Los Píxeles", "album": "Disco sin carátula"}
+        answers = {"deezer": {"data": [{"id": 8, "title": "Disco sin carátula", "artist": {"name": "Los Píxeles"},
+                                        "cover_xl": "https://cdn/images/cover/one/1000.jpg"}]}}
+        pictures = {"https://cdn/images/cover/one/1000.jpg": self._png(300)}
+        self.app.cfg["cover_online"] = False             # the button searches even with the automatic search off
+
+        def get_json(url):
+            return next((a for host, a in answers.items() if host in url), {})
+        with mock.patch.object(coverfind, "fetch_json", get_json), \
+                mock.patch.object(coverfind, "fetch_image", lambda url: pictures.get(url)):
+            dialog = FileInfoDialog(self.app, song)
+            dialog.show()
+            wait(600)
+            self.assertTrue(dialog.cover_search.isVisible())
+            self.assertEqual(dialog.cover_search.text(), "Buscar carátula en Internet")
+            dialog._search_cover()
+            wait(800)
+            self.assertFalse(dialog.art.pixmap().isNull())
+            self.assertEqual(dialog.cover_search.text(), "No es esta carátula: buscar otra")
+            dialog._search_cover()                       # wrong cover: rejected, nothing else matches
+            wait(800)
+            self.assertTrue(dialog.art.pixmap().isNull())
+            self.assertEqual(dialog.art.text(), "No se encontró carátula")
+            self.assertEqual(dialog.cover_search.text(), "Buscar carátula en Internet")
+            dialog.close()
+        self.app.cfg["cover_online"] = True
+        with_cover = FileInfoDialog(self.app, {"file": "A/01.wav", "artist": "x", "album": "y"})
+        with_cover.show()
+        wait(600)
+        self.assertFalse(with_cover.art.pixmap().isNull())
+        self.assertFalse(with_cover.cover_search.isVisible())        # a local cover is never replaced
+        with_cover.close()
+
+    def test_cue_sheet_tracks_find_the_picture_next_to_the_cue(self):
+        from PySide6.QtGui import QColor, QImage
+        from zebamp.notify import fetch_cover_job
+        folder = os.path.join(self.tmp, "music", "G")
+        os.makedirs(folder, exist_ok=True)
+        shutil.copy(os.path.join(self.tmp, "music", "A", "00.wav"), os.path.join(folder, "disco.wav"))
+        with open(os.path.join(folder, "Banda - Disco.cue"), "w") as fh:
+            fh.write('PERFORMER "Banda"\nTITLE "Disco"\nFILE "disco.wav" WAVE\n'
+                     '  TRACK 01 AUDIO\n    TITLE "Uno"\n    INDEX 01 00:00:00\n'
+                     '  TRACK 02 AUDIO\n    TITLE "Dos"\n    INDEX 01 00:02:00\n')
+        picture = QImage(80, 80, QImage.Format.Format_RGB32)
+        picture.fill(QColor("#a03060"))
+        picture.save(os.path.join(folder, "front.png"))
+        update = ["mpc", "-h", f"{self.tmp}/sock", "update", "--wait"]
+        subprocess.run(update, capture_output=True)
+
+        def remove_folder():
+            shutil.rmtree(folder, ignore_errors=True)
+            subprocess.run(update, capture_output=True)
+        self.addCleanup(remove_folder)
+        listing = ["mpc", "-h", f"{self.tmp}/sock", "listall", "G"]
+        listed = subprocess.run(listing, capture_output=True, text=True).stdout
+        tracks = [line for line in listed.splitlines() if ".cue/" in line]
+        if not tracks:
+            self.skipTest("this MPD does not list the tracks of CUE sheets")
+        got = []
+        self.app.player.conn.run_async(fetch_cover_job(tracks[0], {"file": tracks[0]}), got.append)
+        wait(700)
+        self.assertTrue(got and got[0] and os.path.exists(got[0]), (tracks[0], got))
+
+    def test_album_folder_with_scans_uses_the_front_and_skips_unreadable_ones(self):
+        from PySide6.QtGui import QColor, QImage
+        from zebamp.notify import fetch_cover_job
+        folder = os.path.join(self.tmp, "music", "H")
+        os.makedirs(folder, exist_ok=True)
+        for name in ("uno.wav", "dos.wav"):
+            shutil.copy(os.path.join(self.tmp, "music", "A", "00.wav"), os.path.join(folder, name))
+        scans = (("Disco-Back.png", (90, 90), "#202020"), ("Disco-Gatefold.png", (200, 100), "#404040"),
+                 ("Disco.png", (120, 118), "#c08020"))
+        for name, size, color in scans:
+            picture = QImage(*size, QImage.Format.Format_RGB32)
+            picture.fill(QColor(color))
+            picture.save(os.path.join(folder, name))
+        with open(os.path.join(folder, "cover.png"), "w") as fh:
+            fh.write("not a picture")                    # best name, but broken: the next one is used
+        update = ["mpc", "-h", f"{self.tmp}/sock", "update", "--wait"]
+        subprocess.run(update, capture_output=True)
+
+        def remove_folder():
+            shutil.rmtree(folder, ignore_errors=True)
+            subprocess.run(update, capture_output=True)
+        self.addCleanup(remove_folder)
+        got = []
+        for uri in ("H/uno.wav", "H/dos.wav"):
+            self.app.player.conn.run_async(fetch_cover_job(uri, {"file": uri}), got.append)
+            wait(600)
+        self.assertTrue(got[0] and got[0] == got[1], got)            # one picture kept for the whole album
+        shown = QImage(got[0])
+        self.assertEqual((shown.width(), shown.height()), (120, 118))                # the front, not back/gatefold
+        self.assertEqual(shown.pixelColor(5, 5).name(), "#c08020")
+
+    def test_quality_window_analyses_the_song_and_closes_cleanly(self):
+        from zebamp import audioquality
+        from zebamp.ui.quality import QualityWindow
+        app = self.app
+        if not audioquality.available():
+            self.skipTest("ffmpeg not installed")
+        song = dict(app.player.queue[2])
+        app.show_quality(song)
+        window = next(w for w in app._windows if isinstance(w, QualityWindow))
+        deadline = time.monotonic() + 8
+        while not window.verdict.text() and time.monotonic() < deadline:
+            wait(150)
+        self.assertEqual(window.verdict.text(), "Sin pérdida auténtico")       # a WAV with nothing cut
+        self.assertIn("PCM", window.info.text())
+        self.assertIsNotNone(window.view.image)
+        window.grab()                                    # paints the scales
+        window.close()
+        stream = QualityWindow(app, {"file": "http://radio/stream"})
+        self.assertIn("no está en este equipo", stream.view.message)
+        stream.close()
+        closing = QualityWindow(app, song)               # closed before the analysis ends: nothing must break
+        closing.close()
+        wait(600)
 
     def test_local_cover_wins_over_the_internet(self):
         from unittest import mock

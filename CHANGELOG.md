@@ -3,6 +3,24 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versiones según [PEP 440](https://peps.python.org/pep-0440/).
 
+## Sin publicar
+
+### Nuevo
+- **Calidad del audio** (Alt+Q): espectrograma de la canción con veredicto.
+  Detecta el corte de agudos que dejan los formatos con pérdida, así que
+  distingue un FLAC auténtico de uno hecho a partir de un MP3, una alta
+  resolución real de un CD ampliado y un MP3 «de 320» que suena como 128.
+
+### Arreglado
+- La información del archivo (Alt+3) muestra ahora la misma carátula que la
+  notificación y la ventana de carátula (antes solo la que daba MPD), y ofrece
+  **Buscar carátula en Internet** o **buscar otra** si la descargada no es.
+- Pistas de hojas CUE (`álbum.cue/track0004`): la carátula se busca en la
+  carpeta donde está el `.cue`.
+- Carpetas con escaneos del disco («…-Back.png», «…-Gatefold.png»…): se
+  elige la portada por nombre y forma, no el archivo más grande (que podía
+  ser un desplegable imposible de abrir), y se guarda una vez por álbum.
+
 ## 1.0.0rc2 - 2026-11-12
 
 ### Nuevo

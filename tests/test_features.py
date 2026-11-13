@@ -265,8 +265,9 @@ class HelpTest(unittest.TestCase):
         import zebamp.ui.lyrics as ly
         import zebamp.ui.milkdrop_config as mc
         import zebamp.ui.radio as ra
+        import zebamp.ui.quality as qu
         import zebamp.ui.smartlist_dialog as sm
-        mods = (md, dl, lib, ly, mc, ra, sm)
+        mods = (md, dl, lib, ly, mc, ra, sm, qu)
         for cls in H.CONTEXT:
             self.assertTrue(any(hasattr(m, cls) for m in mods), cls)
 

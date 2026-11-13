@@ -10,19 +10,39 @@ import shutil
 from PySide6.QtCore import QObject, QProcess, QTimer, Qt
 from PySide6.QtGui import QImage
 
+from .localcover import folder_covers, load_scaled
 from .player import first, fmt_time, music_directory_of
 
 log = logging.getLogger(__name__)
 
 CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")),
                      "zebamp", "covers")
-_COVER_NAMES = re.compile(r"^(cover|folder|front|album)[^/]*\.(jpe?g|png|webp|bmp)$", re.I)
-_IMAGE = re.compile(r"\.(jpe?g|png|webp|bmp)$", re.I)
+COVER_SIDE = 512            # pixels: covers are kept at most this big
+FOLDER_TRIES = 3            # images of the album folder tried, best guess first
 MIN_ONLINE_SIDE = 200       # pixels: smaller downloads are not accepted as covers
 
 
 def cover_path(uri: str) -> str:
     return os.path.join(CACHE, hashlib.md5(uri.encode("utf-8", "replace")).hexdigest() + ".png")
+
+
+_INSIDE_CUE = re.compile(r"^(.*\.cue)/[^/]+$", re.I)
+
+
+def container_file(uri: str) -> str:
+    """The file on disk an MPD URI belongs to.  A track of a CUE sheet is
+    "folder/album.cue/track0004": the album's folder is that of the .cue."""
+    inside = _INSIDE_CUE.match(uri)
+    return inside.group(1) if inside else uri
+
+
+def _save_png(img: QImage, out: str) -> str | None:
+    os.makedirs(CACHE, exist_ok=True)
+    tmp = out + ".tmp.png"
+    if img.save(tmp, "PNG"):
+        os.replace(tmp, out)
+        return out
+    return None
 
 
 def is_picture(data: bytes) -> bool:
@@ -31,11 +51,20 @@ def is_picture(data: bytes) -> bool:
     return not img.isNull() and min(img.width(), img.height()) >= MIN_ONLINE_SIDE
 
 
-def cover_job(app, song: dict, force=False):
+def cover_query(app, song: dict):
+    """The Internet search `cover_job` makes for `song` (same names: its
+    tags, what its sound was recognised as, or the file name); None when
+    there is nothing to search with."""
+    from .coverfind import query_from_song
+    from .songid import described
+    return query_from_song(described(song, app.player.music_directory))
+
+
+def cover_job(app, song: dict, force=False, online=None):
     """The job that finds the cover of `song` the way the user set it up
     (with or without looking on the Internet)."""
-    return fetch_cover_job(song.get("file", ""), song, bool(app.cfg["cover_online"]), force,
-                           app.cfg["acoustid_key"] or "")
+    online = bool(app.cfg["cover_online"]) if online is None else online
+    return fetch_cover_job(song.get("file", ""), song, online, force, app.cfg["acoustid_key"] or "")
 
 
 def _music_directory(client) -> str | None:
@@ -78,10 +107,11 @@ def fetch_cover_job(uri: str, song: dict | None = None, online=False, force=Fals
         out = cover_path(uri)
         if os.path.exists(out) and os.path.getsize(out) > 0:
             return out
+        on_disk = container_file(uri)
         data = None
-        for cmd in ("readpicture", "albumart"):
+        for cmd, target in (("readpicture", uri), ("albumart", uri), ("albumart", on_disk)):
             try:
-                r = getattr(client, cmd)(uri)
+                r = getattr(client, cmd)(target)
                 if isinstance(r, dict) and r.get("binary"):
                     data = r["binary"]
                     break
@@ -89,29 +119,32 @@ def fetch_cover_job(uri: str, song: dict | None = None, online=False, force=Fals
                 continue
         img = QImage.fromData(data) if data else QImage()
         if img.isNull() and "://" not in uri:
-            # like ncmpcpp's helper: any image in the album folder
-            music = _music_directory(client)
-            if music:
-                d = os.path.join(music, os.path.dirname(uri))
-                try:
-                    files = [f for f in os.listdir(d) if _IMAGE.search(f)]
-                except OSError:
-                    files = []
-                named = [f for f in files if _COVER_NAMES.match(f)]
-                pick = named[0] if named else (max(files, key=lambda f: os.path.getsize(os.path.join(d, f)))
-                                                if files else None)
-                if pick:
-                    img = QImage(os.path.join(d, pick))
+            return _folder_cover(client, on_disk)
         if img.isNull():
             return None
-        if max(img.width(), img.height()) > 512:
-            img = img.scaled(512, 512, Qt.AspectRatioMode.KeepAspectRatio,
+        if max(img.width(), img.height()) > COVER_SIDE:
+            img = img.scaled(COVER_SIDE, COVER_SIDE, Qt.AspectRatioMode.KeepAspectRatio,
                              Qt.TransformationMode.SmoothTransformation)
-        os.makedirs(CACHE, exist_ok=True)
-        tmp = out + ".tmp.png"
-        if img.save(tmp, "PNG"):
-            os.replace(tmp, out)
-            return out
+        return _save_png(img, out)
+
+    def _folder_cover(client, on_disk):
+        """Like ncmpcpp's helper: the front cover among the images of the
+        album folder.  Kept once per picture (not per song): scans can be
+        huge and every track of the album would decode them again."""
+        music = _music_directory(client)
+        candidates = folder_covers(os.path.join(music, os.path.dirname(on_disk))) if music else []
+        for picked in candidates[:FOLDER_TRIES]:
+            try:
+                info = os.stat(picked)
+            except OSError:
+                continue
+            key = hashlib.md5(f"{picked}\n{info.st_size}\n{int(info.st_mtime)}".encode()).hexdigest()
+            out = os.path.join(CACHE, f"folder-{key}.png")
+            if os.path.exists(out) and os.path.getsize(out) > 0:
+                return out
+            img = load_scaled(picked, COVER_SIDE)
+            if not img.isNull():
+                return _save_png(img, out)
         return None
     return job
 
