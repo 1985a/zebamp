@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 from PySide6.QtCore import QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QImage, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from .. import audioquality as Q
@@ -119,6 +119,10 @@ class QualityWindow(QWidget):
         self.song = dict(song)
         self._closed = False
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        # nothing in this window takes the keyboard (labels and a picture):
+        # the window itself must, or Esc has nowhere to go
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, self.close)
         self.setWindowTitle(tr("Calidad del audio - Zebamp"))
         self.resize(820, 520)
         lay = QVBoxLayout(self)
@@ -177,8 +181,6 @@ class QualityWindow(QWidget):
         self._closed = True         # stops ffmpeg if it is still decoding
         super().closeEvent(ev)
 
-    def keyPressEvent(self, ev):
-        if ev.key() == Qt.Key.Key_Escape:
-            self.close()
-        else:
-            super().keyPressEvent(ev)
+    def showEvent(self, ev):
+        super().showEvent(ev)
+        self.setFocus()

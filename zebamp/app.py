@@ -1014,6 +1014,10 @@ class ZebampApp:
         w = self.keep(QualityWindow(self, s))
         w.show()
         w.raise_()
+        w.activateWindow()
+        # opened from a menu, the compositor hands the keyboard back to the
+        # window the menu belonged to when it closes: ask for it again
+        self._wm_focus(w)
 
     def show_quality_selected(self):
         rows = self.pl_panel.selected_rows()

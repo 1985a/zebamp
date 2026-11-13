@@ -882,6 +882,16 @@ class AppFeaturesTest(unittest.TestCase):
         closing = QualityWindow(app, song)               # closed before the analysis ends: nothing must break
         closing.close()
         wait(600)
+        # Esc closes it, sent the way a real key press arrives (to the window, not to a widget)
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        app.show_quality(song)
+        escaped = [w for w in app._windows if isinstance(w, QualityWindow)][-1]
+        wait(300)
+        self.assertIs(QAPP.focusWidget(), escaped)
+        QTest.keyClick(escaped.windowHandle(), Qt.Key.Key_Escape)
+        wait(300)
+        self.assertNotIn(escaped, app._windows)
 
     def test_local_cover_wins_over_the_internet(self):
         from unittest import mock

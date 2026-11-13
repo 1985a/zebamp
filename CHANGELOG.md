@@ -15,6 +15,8 @@ versiones según [PEP 440](https://peps.python.org/pep-0440/).
 - La información del archivo (Alt+3) muestra ahora la misma carátula que la
   notificación y la ventana de carátula (antes solo la que daba MPD), y ofrece
   **Buscar carátula en Internet** o **buscar otra** si la descargada no es.
+- La ventana «Calidad del audio» se cierra con Esc también cuando se abre
+  desde un menú (el teclado volvía al reproductor al cerrarse el menú).
 - Pistas de hojas CUE (`álbum.cue/track0004`): la carátula se busca en la
   carpeta donde está el `.cue`.
 - Carpetas con escaneos del disco («…-Back.png», «…-Gatefold.png»…): se
